@@ -145,3 +145,21 @@
   Sanitizer re-run on final binaries (running at log time).
 - Next: docs refresh (README/WRITEUP/NEGATIVE — done this pass),
   plot script, ctest, git init + commit, Phase D/E assessment.
+
+## 2026-10-09 — First commit; evidence-to-revision mapping; session closeout
+- `git init` + first commit `ba04ec7` (working tree clean at commit time).
+  `results/bench_*.json` record `"git_commit": "unknown"` because no repo
+  existed when they were measured; mapping (verified, tree clean): all GPU
+  evidence in this commit (bench runs D/E + run C, correctness seed-1234,
+  sanitizer batch 3, ncu attempt log, plot) was produced from exactly the
+  committed sources. Future runs will stamp the hash automatically.
+- ctest: 3/3 pass (cpu reference, gpu_correctness 72/72, claims_audit 185
+  traced). CPU gates + roofline self-check + table freshness re-verified
+  pre-commit. `.gitignore` += `*.exe` (root hello.exe stays local, untracked).
+- Residual gaps (not hidden): `ncu` counters blocked (NOT RUN evidence kept);
+  `nsys` absent; torch install deferred (Phase D analytical only via
+  `scripts/roofline.py`); CI has no clang-format step;
+  percentages in README derive from traced values (audit understands 100*a/b).
+- Next: push to GitHub (creates remote; CI runs CPU checks),
+  optional torch `ml/` experiment per WRITEUP section 13, optional ncu run on
+  a counter-permitted machine per `scripts/run_ncu.sh`.
