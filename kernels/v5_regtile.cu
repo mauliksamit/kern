@@ -22,16 +22,16 @@
 namespace kern {
 namespace {
 
-constexpr int BM = 128; // block-tile rows of C
-constexpr int BN = 128; // block-tile cols of C
-constexpr int BK = 8;   // K-slice per step
-constexpr int TM = 8;   // per-thread rows
-constexpr int TN = 8;   // per-thread cols
+constexpr int BM = 128;  // block-tile rows of C
+constexpr int BN = 128;  // block-tile cols of C
+constexpr int BK = 8;    // K-slice per step
+constexpr int TM = 8;    // per-thread rows
+constexpr int TN = 8;    // per-thread cols
 constexpr int BDIM = 16; // 16x16 = 256 threads per block (16*TM==BM, 16*TN==BN)
 
 __global__ void
-v5_kernel(const float* __restrict__ A, const float* __restrict__ B,
-          float* __restrict__ C, int M, int N, int K) {
+v5_kernel(const float* __restrict__ A, const float* __restrict__ B, float* __restrict__ C, int M,
+          int N, int K) {
   __shared__ float As[BM][BK];
   __shared__ float Bs[BK][BN];
 
@@ -51,14 +51,12 @@ v5_kernel(const float* __restrict__ A, const float* __restrict__ B,
       const int ar = elemA / BK, ac = elemA % BK;
       const int gRow = blockIdx.y * BM + ar;
       const int aCol = t * BK + ac;
-      As[ar][ac] =
-          (gRow < M && aCol < K) ? A[(std::size_t)gRow * (std::size_t)K + aCol] : 0.0f;
+      As[ar][ac] = (gRow < M && aCol < K) ? A[(std::size_t)gRow * (std::size_t)K + aCol] : 0.0f;
       const int elemB = tid * 4 + e;
       const int br = elemB / BN, bc = elemB % BN;
       const int bRow = t * BK + br;
       const int gCol = blockIdx.x * BN + bc;
-      Bs[br][bc] =
-          (bRow < K && gCol < N) ? B[(std::size_t)bRow * (std::size_t)N + gCol] : 0.0f;
+      Bs[br][bc] = (bRow < K && gCol < N) ? B[(std::size_t)bRow * (std::size_t)N + gCol] : 0.0f;
     }
     __syncthreads();
 #pragma unroll

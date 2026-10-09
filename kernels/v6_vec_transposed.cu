@@ -27,16 +27,16 @@
 namespace kern {
 namespace {
 
-constexpr int BM = 128; // block-tile rows of C (same as v5)
-constexpr int BN = 128; // block-tile cols of C (same as v5)
-constexpr int BK = 8;   // K-slice per step (same as v5)
-constexpr int TM = 8;   // per-thread rows (same as v5)
-constexpr int TN = 8;   // per-thread cols (same as v5)
+constexpr int BM = 128;  // block-tile rows of C (same as v5)
+constexpr int BN = 128;  // block-tile cols of C (same as v5)
+constexpr int BK = 8;    // K-slice per step (same as v5)
+constexpr int TM = 8;    // per-thread rows (same as v5)
+constexpr int TN = 8;    // per-thread cols (same as v5)
 constexpr int BDIM = 16; // 16x16 = 256 threads per block (same as v5)
 
 __global__ void
-v6_kernel(const float* __restrict__ A, const float* __restrict__ B,
-          float* __restrict__ C, int M, int N, int K) {
+v6_kernel(const float* __restrict__ A, const float* __restrict__ B, float* __restrict__ C, int M,
+          int N, int K) {
   __shared__ float At[BK][BM]; // A tile TRANSPOSED: At[k][r]
   __shared__ float Bs[BK][BN]; // B tile as in v5
 
@@ -54,26 +54,20 @@ v6_kernel(const float* __restrict__ A, const float* __restrict__ B,
     const bool fullRow = (blockIdx.y * BM + BM) <= M;
     const bool fullCol = (blockIdx.x * BN + BN) <= N;
     const bool fullK = (tileK + BK) <= K;
-    const std::size_t aBase =
-        (std::size_t)(blockIdx.y * BM) * (std::size_t)K + (std::size_t)tileK;
-    const std::size_t bBase =
-        (std::size_t)tileK * (std::size_t)N + (std::size_t)(blockIdx.x * BN);
-    const bool aligned =
-        (K % 4 == 0) && (N % 4 == 0) &&
-        ((reinterpret_cast<uintptr_t>(A + aBase) % 16) == 0) &&
-        ((reinterpret_cast<uintptr_t>(B + bBase) % 16) == 0);
+    const std::size_t aBase = (std::size_t)(blockIdx.y * BM) * (std::size_t)K + (std::size_t)tileK;
+    const std::size_t bBase = (std::size_t)tileK * (std::size_t)N + (std::size_t)(blockIdx.x * BN);
+    const bool aligned = (K % 4 == 0) && (N % 4 == 0) &&
+                         ((reinterpret_cast<uintptr_t>(A + aBase) % 16) == 0) &&
+                         ((reinterpret_cast<uintptr_t>(B + bBase) % 16) == 0);
     if (fullRow && fullCol && fullK && aligned) {
       // Vectorized fill: 256 threads x float4 = 1024 floats = one tile.
       // A: tid -> ar = tid/2, ac = (tid%2)*4; B: br = tid/32, bc = (tid%32)*4.
       const int ar = tid / 2, ac = (tid % 2) * 4;
       const int br = tid / 32, bc = (tid % 32) * 4;
-      const float4 a4 =
-          reinterpret_cast<const float4*>(A + (std::size_t)(blockIdx.y * BM + ar) *
-                                                    (std::size_t)K +
-                                          tileK + ac)[0];
-      const float4 b4 =
-          reinterpret_cast<const float4*>(B + (std::size_t)(tileK + br) * (std::size_t)N +
-                                          blockIdx.x * BN + bc)[0];
+      const float4 a4 = reinterpret_cast<const float4*>(
+          A + (std::size_t)(blockIdx.y * BM + ar) * (std::size_t)K + tileK + ac)[0];
+      const float4 b4 = reinterpret_cast<const float4*>(
+          B + (std::size_t)(tileK + br) * (std::size_t)N + blockIdx.x * BN + bc)[0];
       At[ac][ar] = a4.x;
       At[ac + 1][ar] = a4.y;
       At[ac + 2][ar] = a4.z;
@@ -89,16 +83,12 @@ v6_kernel(const float* __restrict__ A, const float* __restrict__ B,
         const int ar = elemA / BK, ac = elemA % BK;
         const int gRow = blockIdx.y * BM + ar;
         const int aCol = tileK + ac;
-        At[ac][ar] = (gRow < M && aCol < K)
-                         ? A[(std::size_t)gRow * (std::size_t)K + aCol]
-                         : 0.0f;
+        At[ac][ar] = (gRow < M && aCol < K) ? A[(std::size_t)gRow * (std::size_t)K + aCol] : 0.0f;
         const int elemB = tid * 4 + e;
         const int br = elemB / BN, bc = elemB % BN;
         const int bRow = tileK + br;
         const int gCol = blockIdx.x * BN + bc;
-        Bs[br][bc] = (bRow < K && gCol < N)
-                         ? B[(std::size_t)bRow * (std::size_t)N + gCol]
-                         : 0.0f;
+        Bs[br][bc] = (bRow < K && gCol < N) ? B[(std::size_t)bRow * (std::size_t)N + gCol] : 0.0f;
       }
     }
     __syncthreads();
@@ -133,8 +123,7 @@ v6_kernel(const float* __restrict__ A, const float* __restrict__ B,
 } // namespace
 
 void
-launch_v6_vec_transposed(const float* A, const float* B, float* C, int M, int N,
-                         int K) {
+launch_v6_vec_transposed(const float* A, const float* B, float* C, int M, int N, int K) {
   dim3 block(BDIM, BDIM);
   dim3 grid((N + BN - 1) / BN, (M + BM - 1) / BM);
   v6_kernel<<<grid, block>>>(A, B, C, M, N, K);

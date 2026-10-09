@@ -78,10 +78,10 @@ check_one(const char* name, void (*launch)(const float*, const float*, float*, i
 // standard gate, and the double reference sits within 1e-7-ish of exact, so
 // no loosening is needed for random test data. A failure here is investigated,
 // never tolerated away.
-int check_vs_cublas(const char* name,
-                    void (*launch)(const float*, const float*, float*, int, int, int),
-                    cublasHandle_t h, const float* dA, const float* dB, float* dC, float* dRef,
-                    int M, int N, int K, int seed) {
+int
+check_vs_cublas(const char* name, void (*launch)(const float*, const float*, float*, int, int, int),
+                cublasHandle_t h, const float* dA, const float* dB, float* dC, float* dRef, int M,
+                int N, int K, int seed) {
   launch(dA, dB, dC, M, N, K);
   CUDA_CHECK_LAST_ERROR();
   CUDA_CHECK(cudaDeviceSynchronize());
@@ -323,16 +323,16 @@ main(int argc, char** argv) {
         CUDA_CHECK(cudaMemcpy(dA, hA.data(), hA.size() * sizeof(float), cudaMemcpyHostToDevice));
         CUDA_CHECK(cudaMemcpy(dB, hB.data(), hB.size() * sizeof(float), cudaMemcpyHostToDevice));
         for (const auto& k : kernels) {
-          total_bad += check_vs_cublas(k.name, k.fn, cublas_h, dA, dB, dC, dRef, s.M, s.N,
-                                       s.K, seed);
+          total_bad +=
+              check_vs_cublas(k.name, k.fn, cublas_h, dA, dB, dC, dRef, s.M, s.N, s.K, seed);
         }
         CUDA_CHECK(cudaFree(dA));
         CUDA_CHECK(cudaFree(dB));
         CUDA_CHECK(cudaFree(dC));
         CUDA_CHECK(cudaFree(dRef));
       }
-      std::printf("[kern_correctness --big] %s (bad=%d)\n", total_bad == 0 ? "ALL PASS" : "FAILURES",
-                  total_bad);
+      std::printf("[kern_correctness --big] %s (bad=%d)\n",
+                  total_bad == 0 ? "ALL PASS" : "FAILURES", total_bad);
     }
   }
   if (cublas_ok)
