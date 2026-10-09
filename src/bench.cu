@@ -62,6 +62,8 @@ std::string
 git_commit() {
   // Best-effort: baked at configure time would be nicer; runtime popen keeps
   // the binary portable. "unknown" if git is absent (e.g. exported tarball).
+  // Overridable with --commit (Phase 0 evidence rule: never report "unknown"
+  // when the revision is known).
   FILE* p = nullptr;
 #ifdef _WIN32
   p = _popen("git rev-parse --short HEAD 2>NUL", "r");
@@ -81,6 +83,67 @@ git_commit() {
   while (!s.empty() && (s.back() == '\n' || s.back() == '\r'))
     s.pop_back();
   return s.empty() ? "unknown" : s;
+}
+
+// Read-only nvidia-smi query (observe only: no clocks, power, or device-state
+// changes). Returns trimmed stdout or "unknown".
+std::string
+smi_query(const char* field) {
+  std::string cmd =
+      std::string("nvidia-smi --query-gpu=") + field + " --format=csv,noheader,nounits";
+  FILE* p = nullptr;
+#ifdef _WIN32
+  p = _popen(cmd.c_str(), "r");
+#else
+  p = popen(cmd.c_str(), "r");
+#endif
+  char buf[256] = {0};
+  if (p) {
+    fgets(buf, sizeof(buf), p);
+#ifdef _WIN32
+    _pclose(p);
+#else
+    pclose(p);
+#endif
+  }
+  std::string s(buf);
+  while (!s.empty() && (s.back() == '\n' || s.back() == '\r' || s.back() == ' '))
+    s.pop_back();
+  while (!s.empty() && s.front() == ' ')
+    s.erase(s.begin());
+  return s.empty() ? "unknown" : s;
+}
+
+struct EnvSample {
+  std::string sm_mhz = "unknown";     // clocks.sm (reported, not set)
+  std::string max_sm_mhz = "unknown"; // clocks.max.sm (reported max, not set)
+  std::string power_w = "unknown";    // power.draw
+  std::string temp_c = "unknown";     // temperature.gpu
+  std::string power_limit_w = "unknown";
+};
+
+EnvSample
+sample_env() {
+  EnvSample e;
+  e.sm_mhz = smi_query("clocks.sm");
+  e.max_sm_mhz = smi_query("clocks.max.sm");
+  e.power_w = smi_query("power.draw");
+  e.temp_c = smi_query("temperature.gpu");
+  e.power_limit_w = smi_query("power.limit");
+  return e;
+}
+
+// Exact compile flags, baked by CMake (KERN_COMPILE_FLAGS define) so the JSON
+// records what actually built the binary. Falls back to "unknown", never guessed.
+const char*
+compile_flags_str() {
+#ifdef KERN_COMPILE_FLAGS
+#define KERN_STR_(x) #x
+#define KERN_STR(x) KERN_STR_(x)
+  return KERN_STR(KERN_COMPILE_FLAGS);
+#else
+  return "unknown (no KERN_COMPILE_FLAGS define)";
+#endif
 }
 
 void
@@ -216,8 +279,10 @@ time_cublas(cublasHandle_t h, const float* dA, const float* dB, float* dC, int M
 #endif
 
 void
-run_one(int M, int N, int K, int seed, const std::string& out_path) {
+run_one(int M, int N, int K, int seed, const std::string& out_path,
+        const std::string& commit_override) {
   std::printf("[bench] M=%d N=%d K=%d seed=%d\n", M, N, K, seed);
+  EnvSample env_before = sample_env();
   std::mt19937 rng((unsigned)seed);
   std::uniform_real_distribution<float> d(-1.0f, 1.0f);
   std::vector<float> hA((std::size_t)M * K), hB((std::size_t)K * N);
@@ -242,8 +307,21 @@ run_one(int M, int N, int K, int seed, const std::string& out_path) {
   time_kernel("v4_coarsened", kern::launch_v4_coarsened, dA, dB, dC, M, N, K, ts[4]);
 #if KERN_BENCH_HAS_CUBLAS
   cublasHandle_t h;
+  std::string math_mode = "cublas_unavailable";
   if (cublasCreate(&h) == CUBLAS_STATUS_SUCCESS) {
+    // Fairness (Phase 0): pin FP32 math explicitly. PEDANTIC disallows any
+    // reduced-precision path (including TF32 tensor math) for sgemm, so the
+    // baseline cannot silently use TF32. Verified below via cublasGetMathMode.
     std::string cublas_err;
+    if (cublasSetMathMode(h, CUBLAS_PEDANTIC_MATH) != CUBLAS_STATUS_SUCCESS) {
+      math_mode = "SET_FAILED(continuing, mode unverified)";
+    } else {
+      cublasMath_t got = CUBLAS_PEDANTIC_MATH;
+      if (cublasGetMathMode(h, &got) != CUBLAS_STATUS_SUCCESS || got != CUBLAS_PEDANTIC_MATH)
+        math_mode = "GET_FAILED(or mismatch)";
+      else
+        math_mode = "CUBLAS_PEDANTIC_MATH(TF32 disallowed)";
+    }
     if (!time_cublas(h, dA, dB, dC, M, N, K, ts[5], cublas_err)) {
       std::printf("  cublas FAILED for this shape (%s); custom-kernel timings still saved\n",
                   cublas_err.c_str());
@@ -287,18 +365,44 @@ run_one(int M, int N, int K, int seed, const std::string& out_path) {
     std::fprintf(stderr, "cannot open %s\n", out_path.c_str());
     std::exit(1);
   }
+  EnvSample env_after = sample_env();
+  // Max observed SM clock across the two read-only samples (still a reported
+  // value, not a measured boost curve — see peak note below).
+  auto to_mhz = [](const std::string& s) -> double {
+    try {
+      return std::stod(s);
+    } catch (...) {
+      return -1.0;
+    }
+  };
+  double sm_max_obs = std::max(to_mhz(env_before.sm_mhz), to_mhz(env_after.sm_mhz));
+  std::string commit = commit_override.empty() ? git_commit() : commit_override;
   std::fprintf(f,
                "{\n  \"M\": %d, \"N\": %d, \"K\": %d, \"seed\": %d,\n"
                "  \"git_commit\": \"%s\",\n"
-               "  \"device\": \"%s\", \"cc\": \"%d.%d\", \"driver\": \"see docs/ENVIRONMENT.md\",\n"
-               "  \"compile_flags\": \"-O3 -lineinfo arch (see build/CMakeCache)\",\n"
+               "  \"device\": \"%s\", \"cc\": \"%d.%d\", \"driver\": \"%s\",\n"
+               "  \"compile_flags\": \"%s\",\n"
+               "  \"cublas_math_mode\": \"%s\",\n"
                "  \"warmup\": 10, \"protocol\": \"cudaEvent kernel-only; median/min/p95\",\n"
                "  \"sm_count\": %d, \"sm_clock_khz\": %d, \"mem_clock_khz\": %d, "
                "\"mem_bus_width_bits\": %d,\n"
-               "  \"peak_fp32_tflops_est\": %.2f,\n  \"results\": [\n",
-               M, N, K, seed, git_commit().c_str(), prop.name, prop.major, prop.minor,
+               "  \"peak_fp32_tflops_est\": %.2f,\n"
+               "  \"peak_note\": \"from reported SM clock via driver API (not measured boost "
+               "clock); 128 FP32 cores/SM assumed, re-verify per whitepaper\",\n"
+               "  \"sm_clock_max_observed_khz\": %.0f,\n"
+               "  \"env_before\": {\"clocks_sm_mhz\": \"%s\", \"clocks_max_sm_mhz\": \"%s\", "
+               "\"power_draw_w\": \"%s\", \"temp_c\": \"%s\", \"power_limit_w\": \"%s\"},\n"
+               "  \"env_after\": {\"clocks_sm_mhz\": \"%s\", \"clocks_max_sm_mhz\": \"%s\", "
+               "\"power_draw_w\": \"%s\", \"temp_c\": \"%s\", \"power_limit_w\": \"%s\"},\n"
+               "  \"results\": [\n",
+               M, N, K, seed, commit.c_str(), prop.name, prop.major, prop.minor,
+               smi_query("driver_version").c_str(), compile_flags_str(), math_mode.c_str(),
                prop.multiProcessorCount, smClockKHz, memClockKHz, prop.memoryBusWidth,
-               peak_fp32_tflops);
+               peak_fp32_tflops, sm_max_obs * 1000.0, env_before.sm_mhz.c_str(),
+               env_before.max_sm_mhz.c_str(), env_before.power_w.c_str(), env_before.temp_c.c_str(),
+               env_before.power_limit_w.c_str(), env_after.sm_mhz.c_str(),
+               env_after.max_sm_mhz.c_str(), env_after.power_w.c_str(), env_after.temp_c.c_str(),
+               env_after.power_limit_w.c_str());
   for (std::size_t i = 0; i < ts.size(); ++i) {
     std::fprintf(f,
                  "    {\"kernel\": \"%s\", \"failed\": %s, \"median_ms\": %.6f, \"min_ms\": %.6f, "
@@ -327,6 +431,7 @@ int
 main(int argc, char** argv) {
   int M = 1024, N = 1024, K = 1024, seed = 0;
   std::string out = "results/bench_M1024_N1024_K1024.json";
+  std::string commit_override; // --commit: stamp JSON when git popen cannot (else auto)
   bool all = false;
   for (int i = 1; i < argc; ++i) {
     if (strcmp(argv[i], "--M") == 0 && i + 1 < argc)
@@ -339,20 +444,22 @@ main(int argc, char** argv) {
       seed = atoi(argv[++i]);
     else if (strcmp(argv[i], "--out") == 0 && i + 1 < argc)
       out = argv[++i];
+    else if (strcmp(argv[i], "--commit") == 0 && i + 1 < argc)
+      commit_override = argv[++i];
     else if (strcmp(argv[i], "--all") == 0)
       all = true;
   }
   if (!all) {
-    run_one(M, N, K, seed, out);
+    run_one(M, N, K, seed, out, commit_override);
     return 0;
   }
   const int sq[] = {256, 512, 1024};
   for (int s : sq) {
     char path[256];
     snprintf(path, sizeof(path), "results/bench_M%d_N%d_K%d.json", s, s, s);
-    run_one(s, s, s, seed, path);
+    run_one(s, s, s, seed, path, commit_override);
   }
-  run_one(1024, 1024, 512, seed, "results/bench_M1024_N1024_K512.json");
-  run_one(512, 1024, 1024, seed, "results/bench_M512_N1024_K1024.json");
+  run_one(1024, 1024, 512, seed, "results/bench_M1024_N1024_K512.json", commit_override);
+  run_one(512, 1024, 1024, seed, "results/bench_M512_N1024_K1024.json", commit_override);
   return 0;
 }

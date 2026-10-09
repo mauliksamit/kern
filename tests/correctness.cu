@@ -160,6 +160,8 @@ main(int argc, char** argv) {
   bool cublas_ok = (cublasCreate(&cublas_h) == CUBLAS_STATUS_SUCCESS);
   if (!cublas_ok)
     std::printf("cublas unavailable at runtime; baseline checks skipped\n");
+  else if (cublasSetMathMode(cublas_h, CUBLAS_PEDANTIC_MATH) != CUBLAS_STATUS_SUCCESS)
+    std::printf("cublas math-mode pin failed; baseline values use default math\n");
 #endif
   std::mt19937 rng(static_cast<unsigned>(seed));
   for (const auto& s : shapes) {

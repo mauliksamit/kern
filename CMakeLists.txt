@@ -50,6 +50,10 @@ if(KERN_HAVE_CUDA)
   set(CMAKE_CUDA_ARCHITECTURES ${KERN_CUDA_ARCH_NUM})
   set(CMAKE_CUDA_FLAGS_RELEASE "-O3 -lineinfo --use_fast_math -Xcompiler=/O2")
   message(STATUS "[kern] CUDA arch: ${KERN_CUDA_ARCH} (CMAKE_CUDA_ARCHITECTURES=${CMAKE_CUDA_ARCHITECTURES})")
+  # Bake the exact release flags into bench JSON (Phase 0 evidence rule: record
+  # what actually built the binary; never guess). Stringified in bench.cu.
+  add_compile_definitions(
+    "KERN_COMPILE_FLAGS=-O3 -lineinfo --use_fast_math -Xcompiler=/O2 -arch=${KERN_CUDA_ARCH}")
 endif()
 
 # ---- CPU reference library (always built) ----------------------------------
