@@ -123,12 +123,12 @@ are covered by the awkward-shape gate.
 algorithm but launches 16×16 = 256 threads, each accumulating a 2×2 micro-tile
 in registers (4× the work per thread; A-row/B-column elements reused across the
 micro-tile; 4× more blocks eligible for concurrent residency). Tile fill is
-cooperative (256 threads × 4 elements). Result at 1024³: **0.62ms vs v2's
-1.17ms — 1.9× faster** (3457 vs 1839 GFLOPS); 512³: 2.2× (0.0815 vs 0.1791ms);
-rect shapes ≈ 2.2×. The occupancy/work-per-thread hypothesis is confirmed by
+cooperative (256 threads × 4 elements). Result at 1024³ (reported run G): **0.65ms vs v2's
+1.13ms — 1.7× faster** (3314 vs 1907 GFLOPS); 512³: 2.2× (0.0817 vs 0.1838ms);
+rect shapes ≈ 2.2× (2.22× / 2.15×). The occupancy/work-per-thread hypothesis is confirmed by
 measurement: the 1024-thread blocks were the binding constraint, not load width
-(§6). v4 reaches 26% of the estimated 13.13 TFLOPS FP32 peak; cuBLAS still leads
-2.7× (9508 GFLOPS) — the remaining gap is the vendor library's territory
+(§6). v4 reaches 25% of the estimated 13.13 TFLOPS FP32 peak; cuBLAS still leads
+2.7× (8910 GFLOPS) — the remaining gap is the vendor library's territory
 (tensor cores, swizzling, per-shape tuning), stated as future work, not failure.
 
 ## 8. Register usage and occupancy (analysis; timing evidence measured, counters NOT RUN)
@@ -164,30 +164,32 @@ counters may be restricted under WDDM (then profiler evidence stays NOT RUN); sh
 ## 10. Measured performance comparisons
 
 Bench matrix: 256/512/1024 square + 1024×1024×512 + 512×1024×1024,
-`kern_bench --all --seed 0`, runs D and E (6-kernel binary) with scripted drift
-check (`scripts/check_repeat.py`, 29/30 cells ≤5%) plus adjudicating run C for
-1024³. Reported run: E (`results/bench_*.json`); table via
+`kern_bench --all --seed 0`. History: runs D/E (+run C) established the baseline;
+the current session ran F/G/H/I under heavier display-GPU contention (see §11).
+Reported run: G (`results/bench_*.json`); table via
 `scripts/generate_tables.py --write` into `README.md`; audit
-(`scripts/claims_audit.py`) passes with 180 traced values. Medians (ms):
+(`scripts/claims_audit.py`) passes. Medians (ms):
 
 | Shape | v0 | v1 | v2 | v3 | v4 | cuBLAS |
 |---|---|---|---|---|---|---|
-| 256³ | 0.0728 | 0.0368 | 0.0279 | 0.0293 | **0.0180** | 0.0200 |
-| 512³ | 0.3369 | 0.2583 | 0.1791 | 0.1774 | **0.0815** | 0.0392 |
-| 1024³ | 2.4838 | 2.2586 | 1.1672 | 1.2242 | **0.6212** | 0.2259 |
-| 1024×1024×512 | 1.2480 | 1.1280 | 0.6012 | 0.5912 | **0.2796** | 0.1128 |
-| 512×1024×1024 | 1.2771 | 1.1253 | 0.6288 | 0.6177 | **0.2762** | 0.1165 |
+| 256³ | 0.0723 | 0.0358 | 0.0275 | 0.0283 | **0.0188** | 0.0201 |
+| 512³ | 0.3387 | 0.2582 | 0.1838 | 0.1760 | **0.0817** | 0.0403 |
+| 1024³ | 2.4845 | 2.2594 | 1.1263 | 1.2700 | **0.6481** | 0.2410 |
+| 1024×1024×512 | 1.6236 | 1.1316 | 0.5923 | 0.5938 | **0.2669** | 0.1157 |
+| 512×1024×1024 | 1.2745 | 1.1399 | 0.6039 | 0.6098 | **0.2813** | 0.1126 |
 
-GFLOPS (1024³): v0 865 → v1 951 → v2 1840 → v3 1754 → **v4 3457** → cuBLAS 9508
-(72% of the 13.13 TFLOPS estimated peak: 36 SMs × 128 cores × 2 FMA ×
-1.425 GHz — an estimate, re-verify cores/SM against the whitepaper before
-citing elsewhere). Findings: v0→v1 helps most at small shapes (2.0× at 256³,
-1.1× at 1024³ — mapping overhead vs memory); v1→v2 ≈ 1.5–1.9× (reuse);
-v2→v3 within ±5% everywhere (negative result, §12); v2→v4 ≈ 1.9–2.2×
-(occupancy); cuBLAS leads v4 2.4–2.7× at large shapes but only 1.1× at 256³
+GFLOPS (1024³): v0 864 → v1 950 → v2 1907 → v3 1691 → **v4 3314** → cuBLAS 8910
+(68% of the 13.13 TFLOPS estimated peak: 36 SMs × 128 cores × 2 FMA ×
+1.425 GHz reported clock — an estimate, re-verify cores/SM against the whitepaper
+before citing elsewhere; observed boost reached 2377 MHz, so the estimate is
+likely understated, see §11). Findings: v0→v1 helps most at small shapes (2.0× at 256³,
+1.10× at 1024³ — mapping overhead vs memory); v1→v2 ≈ 1.3–2.0× (reuse);
+v2→v3 never a gain in any run (v3 slower on 4/5 shapes here: 1.2700 vs 1.1263 ms
+at 1024³; negative result, §12); v2→v4 ≈ 1.5–2.2×
+(occupancy); cuBLAS leads v4 2.0–2.7× at large shapes but only 1.1× at 256³
 (launch-overhead regime — the ladder is competitive where the GPU is idle).
-Repeatability: worst drift 5.42% (one marginal cell, §11); v3-beats-v2 never
-observed in any of 3 runs at 1024³.
+Repeatability: this session ran F/G/H/I (see §11); prior D/E/C values retained
+in LOG.md. v3 beats v2 only at 512³ by ≤4% (all sessions — within noise).
 
 ## 11. Profiler evidence (NOT RUN — blocked, with evidence)
 
@@ -195,7 +197,12 @@ observed in any of 3 runs at 1024³.
 shape): `ERR_NVGPUCTRPERM` — no permission to access GPU performance counters
 on this WDDM device. Enabling counters needs admin/developer-mode action (out
 of scope). Attempt log:
-`results/ncu/ncu_smoke_M256_attempt.log`. Full per-version metric plan
+`results/ncu/ncu_smoke_M256_attempt.log`. Re-tested after counters were
+enabled: STILL blocked — even `ncu --query-metrics` fails
+(`results/ncu/query_metrics_ERR_NVGPUCTRPERM.log`), so no metric name in the
+installed version can be exercised here; `results/ncu/list_sections_2025.3.1.log`
+records the section inventory only. `scripts/run_ncu.sh` was NOT run (same
+root cause, no data possible). Full per-version metric plan
 (DRAM transactions, coalescing efficiency, bank conflicts, occupancy) is kept
 in `scripts/run_ncu.sh` for a machine with counter access. Repeatability notes
 from timing distributions (substitute evidence, labeled as such): 1024³ v2
@@ -204,6 +211,21 @@ A-vs-B drift sits inside overlapping min–p95 bands (WDDM display-GPU noise fro
 compositor/background apps sharing the GPU); run B kept as reported run, all
 three values disclosed here. The single D-vs-E marginal cell (K512 v4, 5.42%,
 mins identical at 0.2601/0.2613) got the same treatment.
+
+New session (runs F/G/H/I, heavier contention): F-vs-G drift flagged 8 cells,
+worst 46% (1024³ v2: F 2.0918 vs G 1.1263). The new env samples explain why
+this is machine state, not kernel behavior — run F's clocks fell 1627→1447 MHz
+across the run while run G's rose 1627→2377 MHz (power 21→71 W, near the 75 W
+cap); long kernels (v0/v1/v2 at 1024³) caught the swings differently per run.
+Four-run adjudication (F/G/H/I) plus D/E/C history: v2-1024³ reads
+2.09/1.13/1.18/1.17 vs 1.12–1.22 historically — F alone out; v1 matches history
+only in G (2.26 vs 2.26–2.30); v0 matches in F/G (2.48). Reported run G has the
+fewest history-disagreeing cells (one: 1024×512 v0 at 1.62 vs 1.25–1.27).
+F/H/I medians are disclosed here and in LOG.md; their raw JSONs live outside
+the repo (temp dir) so the generated table keeps one raw run per shape.
+Process note: run E's JSONs were overwritten by run F before being copied
+aside — E values survive only in prose (prior LOG/WRITEUP); all later runs
+are copied aside before the next run starts.
 
 ## 12. Failed experiments and negative results
 
@@ -217,9 +239,9 @@ numbers and kept reproducible — never deleted, never re-timed until attractive
 
 ## 13. Hardware-specific conclusions
 
-Single data point (RTX 5070, Blackwell sm_120, WDDM display-attached, driver
+Single data point (RTX 5070 Laptop, Blackwell sm_120, WDDM display-attached, driver
 617.14, CUDA 13.0): the ladder ranks v0 < v1 < v2 ≈ v3 < v4 < cuBLAS on every
-shape ≥512, with v4 at 26% and cuBLAS at 72% of estimated FP32 peak at 1024³.
+shape ≥512, with v4 at 25% and cuBLAS at 68% of estimated FP32 peak at 1024³.
 At 256³ all backends converge (launch overhead dominates — even v4 barely beats
 cuBLAS 1.1×). No conclusion is generalized to other architectures without
 re-running; the `-DKERN_CUDA_ARCH` flag and `tools/detect_arch.py` exist for that.
@@ -249,7 +271,7 @@ re-running; the `-DKERN_CUDA_ARCH` flag and `tools/detect_arch.py` exist for tha
   passes): a 4096-wide FFN up-projection at 512 tokens (M=512,N=4096,K=4096)
   needs 17.18 GFLOP at AI=204.8 FLOP/B — the same compute-leaning regime as the
   measured shapes (AI 128–171), where the v4 occupancy win applies; nearest
-  measured point (512×1024×1024, v4 3888 GFLOPS) implies ≥19.0 GB/s ideal
+  measured point (512×1024×1024, v4 3817 GFLOPS) implies ≥18.6 GB/s ideal
   traffic. An attention QKV case (M=2048,N=4096,K=1024, AI=292.6) sits even
   further toward compute-bound. These are analytical placements against
   measured references (extrapolation, labeled as such) — they motivate which

@@ -43,10 +43,11 @@ the CMake CPU-only build works with either (verified below with the default gene
 
 Update 2026-10-09: toolkit IS installed (`ncu`/`compute-sanitizer` 2025.3.1.0).
 Counter permission was blocked at the 2026-10-09 attempt (`ERR_NVGPUCTRPERM`,
-log in `results/ncu/`); counters have since been enabled, so Phase 1
-re-runs `scripts/run_ncu.sh` and records the outcome here. Until fresh `ncu`
-output exists, profiler evidence stays `NOT RUN` — rely on
-`cudaEvent` timing plus clearly labeled analytical reasoning.
+log in `results/ncu/`); re-tested after counters were enabled and STILL
+blocked — even `ncu --query-metrics` fails with `ERR_NVGPUCTRPERM`
+(`results/ncu/query_metrics_ERR_NVGPUCTRPERM.log`; section list saved in
+`results/ncu/list_sections_2025.3.1.log`). Profiler evidence stays `NOT RUN` — rely on `cudaEvent` timing plus clearly labeled analytical
+reasoning. (No admin/developer-mode change attempted — out of scope.)
 
 Original note (kept for history): shared/cloud GPUs often block profiler
 counters. This is a local WDDM GPU; WDDM + Nsight Compute generally works but

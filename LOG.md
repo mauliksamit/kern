@@ -189,3 +189,38 @@
   commits in this LOG entry of 2026-10-09 (tree was clean); no remote
   configured — no push destination yet; PyTorch work deferred
   (roofline analysis only, no new deps).
+
+## 2026-10-09 — Phase 0: evidence base (metadata + doc cleanup)
+- Bottleneck: provenance gaps — `git_commit: unknown`, descriptive flags,
+  no driver/clocks in JSON; PEDANTIC math unset; stale scaffolding prose.
+- Change: bench JSON stamps commit/driver/compile-flags/math-mode/env
+  samples/peak-note/max-observed-clock; CMake bakes flags; correctness pins
+  PEDANTIC; docs reconciled (72 checks verified vs 72 PASS lines), WRITEUP
+  1–14 renumbered, archive/move done. Commits 182f8e3 (metadata), 6012bce
+  (docs). Smoke 256^3: commit stamped, PEDANTIC verified, obs 1845MHz vs
+  reported 1425MHz — peak estimate likely understated, labeled as such.
+- Metric: pending full re-run (correctness/sanitizer/bench×2 next).
+- Next: Phase 0 evidence commit, then Phase 1 ncu.
+
+## 2026-10-09 — Phase 0 evidence: reruns under contention, reported run G
+- Bottleneck: new JSON metadata needed validation; then the session turned
+  disturbed — F-vs-G drift flagged 8 cells (worst 46% on 1024^3 v2).
+- Change: correctness ALL PASS (bad=0) + sanitizer 4/4 clean on metadata
+  binaries; bench --all runs F, G, H, I (seed 0); runs preserved aside
+  (runF/runG/runH/runI in temp); reported run G restored to results/.
+- Metric: env samples caught non-stationary clocks (F: 1627->1447 MHz
+  falling; G: 1627->2377 MHz rising, 71 W near cap) — machine state, not
+  kernel behavior. 4-run + history adjudication: G has fewest
+  history-disagreeing cells. Run G 1024^3 medians: v0 2.4845 / v1 2.2594 /
+  v2 1.1263 / v3 1.2700 / v4 0.6481 (3314 GFLOPS, 25% of est. peak) /
+  cuBLAS 0.2410 (8910 GFLOPS, 68%). Ranges: v4/v2 1.5-2.2x across shapes;
+  cuBLAS/v4 2.0-2.7x at large shapes. v3 never beats v2 beyond noise
+  (best: 4% at 512^3). All prose refreshed to G; audit passes (185 traced).
+- Process failure, owned: run E's JSONs were overwritten by run F before
+  being copied aside. E values survive in prior LOG/WRITEUP prose only.
+  Rule from here: copy each run aside BEFORE the next run starts.
+- ncu: counters STILL blocked after they were enabled (even --query-metrics
+  fails; logs in results/ncu/). Skipping to Phase 2, profiler NOT RUN.
+  Device note: ncu reports GB206 (earlier GB205 inference wrong; sm_120
+  flag unaffected — builds and runs).
+- Next: Phase 2 v5_regtile (BM=BN=128, BK=8, 8x8 micro-tile, 256 threads).

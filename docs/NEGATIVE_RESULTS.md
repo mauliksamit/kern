@@ -26,12 +26,12 @@ measured misses here with the reason.
 5. **(placeholder) v3 vectorization fallback** — If aligned `float4` path shows no
    gain over v2 on the bench GPU, record `ncu` DRAM-throughput metrics here and
    revert/park.
-   UPDATE 2026-10-09 (MEASURED — hypothesis failed, kept reproducible): v3 vs v2
-   medians (runs D/E, `results/bench_*.json`): 256^3: 0.0287/0.0293 vs
-   0.0283/0.0279; 512^3: 0.1850/0.1774 vs 0.1836/0.1791; 1024^3:
-   1.2332/1.2242 vs 1.1930/1.1672 (v3 3-5% SLOWER in all 3 runs incl. run C);
-   rect shapes within +/-1%. Verdict: no genuine gain — cooperative float4 fill
-   + fast-path branch overhead at the 1024-thread occupancy wall. v4 (same tile,
-   coarsened threads) gained 1.9-2.2x, confirming the wall, not load width, was
-   binding. `ncu` transaction counters NOT RUN (blocked, see `results/ncu/`).
-   v3 file retained for reproducibility; do not build on it without new evidence.
+   UPDATE 2026-10-09, re-verified on reported run G (hypothesis failed again,
+   kept reproducible): v3 vs v2 medians (`results/bench_*.json`): 256^3:
+   0.0283 vs 0.0275; 512^3: 0.1760 vs 0.1838 (only win, 4%, within noise);
+   1024^3: 1.2700 vs 1.1263; K512: 0.5938 vs 0.5923; rect: 0.6098 vs 0.6039.
+   Same verdict across sessions D/E/F/G/H/I: no genuine gain — cooperative
+   float4 fill + fast-path branch overhead at the 1024-thread occupancy wall.
+   v4 (same tile, coarsened threads) gained 1.5-2.2x, confirming the wall,
+   not load width, was binding. `ncu` transaction counters NOT RUN (blocked,
+   see `results/ncu/`). v3 file retained; do not build on it without evidence.
