@@ -22,7 +22,8 @@ import sys
 
 ROOT = os.path.join(os.path.dirname(__file__), "..")
 RESULTS_GLOB = os.path.join(ROOT, "results", "bench_*.json")
-CUSTOM = ["v0_naive", "v1_coalesced", "v2_tiled", "v3_tiled_vectorized", "v4_coarsened"]
+CUSTOM = ["v0_naive", "v1_coalesced", "v2_tiled", "v3_tiled_vectorized", "v4_coarsened",
+          "v5_regtile", "v6_vec_transposed"]
 
 
 def stats(M, N, K):

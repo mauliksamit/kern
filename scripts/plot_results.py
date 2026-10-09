@@ -19,7 +19,7 @@ RESULTS_GLOB = os.path.join(ROOT, "results", "bench_*.json")
 OUT = os.path.join(ROOT, "results", "plot_gflops.png")
 
 ORDER = ["v0_naive", "v1_coalesced", "v2_tiled", "v3_tiled_vectorized",
-         "v4_coarsened", "v5_regtile", "cublas"]
+         "v4_coarsened", "v5_regtile", "v6_vec_transposed", "cublas"]
 
 
 def main():

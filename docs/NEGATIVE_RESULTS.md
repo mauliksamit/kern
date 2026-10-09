@@ -30,8 +30,11 @@ measured misses here with the reason.
    kept reproducible): v3 vs v2 medians (`results/bench_*.json`): 256^3:
    0.0283 vs 0.0275; 512^3: 0.1760 vs 0.1838 (only win, 4%, within noise);
    1024^3: 1.2700 vs 1.1263; K512: 0.5938 vs 0.5923; rect: 0.6098 vs 0.6039.
-   Same verdict across sessions D/E/F/G/H/I: no genuine gain — cooperative
+   Same verdict across sessions D/E/F/G/H/I/J/K/L/M: no genuine gain — cooperative
    float4 fill + fast-path branch overhead at the 1024-thread occupancy wall.
    v4 (same tile, coarsened threads) gained 1.5-2.2x, confirming the wall,
    not load width, was binding. `ncu` transaction counters NOT RUN (blocked,
    see `results/ncu/`). v3 file retained; do not build on it without evidence.
+   Re-verified on runs J/K/L/M (reported run M): v3 vs v2 medians 256^3:
+   0.0287 vs 0.0277; 512^3: 0.1776 vs 0.1852; 1024^3: 1.2580 vs 1.1277;
+   K512: 0.5909 vs 0.5931; rect: 0.6142 vs 0.6090. Same verdict, sixth time.

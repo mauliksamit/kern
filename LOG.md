@@ -243,3 +243,25 @@
   speedups (share + drift forms, analytical-model exemption); passes (215).
 - Profiler: ncu still blocked — timing + labeled analysis only, NOT RUN.
 - Next: v6_vec_transposed (float4 + transposed A tile) to test layout isolation.
+
+## 2026-10-09 — Phase 2 v6_vec_transposed: 1.3x over v5 everywhere (layout pays)
+- Bottleneck (evidence): v5's A-fragment pattern puts both ty-groups on the
+  same shared bank (rows 8 apart alias); fill is scalar (4 loads/element-run).
+- Change (single): `kernels/v6_vec_transposed.cu` — same BM/BN/BK/TM/TN as v5;
+  one float4 per thread in fill (256 float4s = one tile exactly) + A tile
+  stored transposed (At[8][128]) so hot fragment loads broadcast; scalar
+  fallback into the same layout; tile-level block-uniform decision (one
+  barrier site — v3 bug class excluded by construction); 2 new shapes
+  (128^3 full-fast, 200^3 mixed). Idea: REFERENCES #8 + comment, no copying.
+- Metric: correctness ALL PASS (bad=0, 160 checks: 20 shapes x 8 backends);
+  sanitizer 4/4 clean; bench L/M (34/40 cells <=5%; 1024^3 L-burst cells
+  adjudicated vs history-matched M). Reported run M 1024^3: v6 0.3053ms /
+  7034 GFLOPS (54% est. peak, 73% of cuBLAS) vs v5 0.4096 (1.34x) vs cuBLAS
+  0.2214 (1.4x lead). Gains hold on ALL shapes (1.2-1.3x), incl. 256^3
+  where v5 starved. Claim audit now scans WRITEUP percentages/speedups
+  (share + drift forms, analytical-model exemption); passes (245 traced).
+- Profiler: ncu still blocked — timing + labeled analysis only, NOT RUN.
+  Without counters the bank-conflict mechanism stays an analytical inference
+  from a controlled experiment (only layout/fill changed v5->v6),
+  stated as such in WRITEUP.
+- Next: Phase 3 broader bench (2048/4096, tall-skinny, wide, TDR skips).

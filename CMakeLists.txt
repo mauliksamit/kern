@@ -70,6 +70,7 @@ if(KERN_HAVE_CUDA)
     kernels/v3_tiled_vectorized.cu
     kernels/v4_coarsened.cu
     kernels/v5_regtile.cu
+    kernels/v6_vec_transposed.cu
   )
   target_include_directories(kern_kernels PUBLIC include)
   set_target_properties(kern_kernels PROPERTIES CUDA_SEPARABLE_COMPILATION OFF)

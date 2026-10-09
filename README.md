@@ -3,12 +3,12 @@
 What: single-precision matrix multiply `C = A·B` (row-major) optimized step by step —
 `v0` naive → `v1` coalesced → `v2` shared-memory tiled → `v3` tiled + vectorized →
 `v4` thread-coarsened (2×2 outputs/thread) → `v5` register-blocked (128-tile,
-8×8/thread) — plus a cuBLAS vendor baseline.
+8×8/thread) → `v6` vectorized + transposed — plus a cuBLAS vendor baseline.
 Why: a small, reproducible study of GPU performance work where every
 claim traces to a committed log file.
 
 Status: **measured on RTX 5070 (sm_120), 2026-10-09.** Correctness gate ALL PASS
-(126 checks: 18 shapes × (6 kernels + cuBLAS)), Compute Sanitizer
+(160 checks: 20 shapes × (7 kernels + cuBLAS)), Compute Sanitizer
 clean (memcheck/racecheck/synccheck/initcheck), bench run twice
 with drift check + adjudicating runs. Profiler counters are blocked on this
 WDDM machine (`ERR_NVGPUCTRPERM`, evidence in `results/ncu/`), so performance
@@ -21,11 +21,11 @@ claims rest on `cudaEvent` timing plus labeled analytical reasoning.
   expect scheduling noise; hence medians, repeats, drift checks). CUDA 13.0 +
   MSVC 19.44, CMake 4.4.3, `ncu`/`compute-sanitizer` 2025.3.1.0, no `nsys`.
   Full record: `docs/ENVIRONMENT.md`.
-- Headline result (1024³, medians, reported run K; runs J + F/G/H/I disclosed
-  in `docs/WRITEUP.md` §12):
-  `v0` 2.49ms → `v1` 2.28ms → `v2` 1.13ms → `v3` 1.31ms → `v4` 0.64ms →
-  **`v5` 0.43ms** (4997 GFLOPS, 38% of the 13.13 TFLOPS estimated FP32 peak) →
-  cuBLAS 0.219ms (9804 GFLOPS, 75% of est. peak). Details + caveats:
+- Headline result (1024³, medians, reported run M; runs L + J/K/F/G/H/I disclosed
+  in `docs/WRITEUP.md` §13):
+  `v0` 2.48ms → `v1` 2.26ms → `v2` 1.13ms → `v3` 1.26ms → `v4` 0.65ms →
+  `v5` 0.41ms → **`v6` 0.305ms** (7034 GFLOPS, 54% of the 13.13 TFLOPS estimated FP32 peak) →
+  cuBLAS 0.221ms (9699 GFLOPS, 74% of est. peak). Details + caveats:
   `docs/WRITEUP.md`.
 
 ## Build, run, reproduce (one command each)
@@ -73,41 +73,46 @@ python3 scripts/generate_tables.py --check
 <!-- RESULTS-BEGIN -->
 | Shape (MxNxK) | Kernel | Median (ms) | GFLOPS | GB/s | Source |
 |---|---|---|---|---|---|
-| 1024x1024x1024 | v0_naive | 2.4937 | 861.2 | 5.0 | `bench_M1024_N1024_K1024.json` |
-| 1024x1024x1024 | v1_coalesced | 2.2847 | 939.9 | 5.5 | `bench_M1024_N1024_K1024.json` |
-| 1024x1024x1024 | v2_tiled | 1.1306 | 1899.5 | 11.1 | `bench_M1024_N1024_K1024.json` |
-| 1024x1024x1024 | v3_tiled_vectorized | 1.3086 | 1641.0 | 9.6 | `bench_M1024_N1024_K1024.json` |
-| 1024x1024x1024 | v4_coarsened | 0.6357 | 3378.2 | 19.8 | `bench_M1024_N1024_K1024.json` |
-| 1024x1024x1024 | v5_regtile | 0.4298 | 4996.9 | 29.3 | `bench_M1024_N1024_K1024.json` |
-| 1024x1024x1024 | cublas | 0.2190 | 9804.1 | 57.4 | `bench_M1024_N1024_K1024.json` |
-| 1024x1024x512 | v0_naive | 1.6059 | 668.6 | 5.2 | `bench_M1024_N1024_K512.json` |
-| 1024x1024x512 | v1_coalesced | 1.1434 | 939.1 | 7.3 | `bench_M1024_N1024_K512.json` |
-| 1024x1024x512 | v2_tiled | 0.5964 | 1800.5 | 14.1 | `bench_M1024_N1024_K512.json` |
-| 1024x1024x512 | v3_tiled_vectorized | 0.5954 | 1803.4 | 14.1 | `bench_M1024_N1024_K512.json` |
-| 1024x1024x512 | v4_coarsened | 0.2673 | 4017.5 | 31.4 | `bench_M1024_N1024_K512.json` |
-| 1024x1024x512 | v5_regtile | 0.2021 | 5312.6 | 41.5 | `bench_M1024_N1024_K512.json` |
-| 1024x1024x512 | cublas | 0.1120 | 9587.0 | 74.9 | `bench_M1024_N1024_K512.json` |
-| 256x256x256 | v0_naive | 0.0696 | 482.3 | 11.3 | `bench_M256_N256_K256.json` |
-| 256x256x256 | v1_coalesced | 0.0350 | 959.4 | 22.5 | `bench_M256_N256_K256.json` |
-| 256x256x256 | v2_tiled | 0.0282 | 1188.9 | 27.9 | `bench_M256_N256_K256.json` |
-| 256x256x256 | v3_tiled_vectorized | 0.0285 | 1175.5 | 27.6 | `bench_M256_N256_K256.json` |
-| 256x256x256 | v4_coarsened | 0.0181 | 1852.6 | 43.4 | `bench_M256_N256_K256.json` |
-| 256x256x256 | v5_regtile | 0.0554 | 605.4 | 14.2 | `bench_M256_N256_K256.json` |
-| 256x256x256 | cublas | 0.0203 | 1656.5 | 38.8 | `bench_M256_N256_K256.json` |
-| 512x1024x1024 | v0_naive | 1.2746 | 842.4 | 6.6 | `bench_M512_N1024_K1024.json` |
-| 512x1024x1024 | v1_coalesced | 1.1522 | 931.9 | 7.3 | `bench_M512_N1024_K1024.json` |
-| 512x1024x1024 | v2_tiled | 0.6127 | 1752.6 | 13.7 | `bench_M512_N1024_K1024.json` |
-| 512x1024x1024 | v3_tiled_vectorized | 0.6133 | 1750.8 | 13.7 | `bench_M512_N1024_K1024.json` |
-| 512x1024x1024 | v4_coarsened | 0.2810 | 3820.8 | 29.9 | `bench_M512_N1024_K1024.json` |
-| 512x1024x1024 | v5_regtile | 0.1874 | 5730.9 | 44.8 | `bench_M512_N1024_K1024.json` |
-| 512x1024x1024 | cublas | 0.1100 | 9765.5 | 76.3 | `bench_M512_N1024_K1024.json` |
-| 512x512x512 | v0_naive | 0.3375 | 795.3 | 9.3 | `bench_M512_N512_K512.json` |
-| 512x512x512 | v1_coalesced | 0.2582 | 1039.7 | 12.2 | `bench_M512_N512_K512.json` |
-| 512x512x512 | v2_tiled | 0.1782 | 1506.0 | 17.6 | `bench_M512_N512_K512.json` |
-| 512x512x512 | v3_tiled_vectorized | 0.1770 | 1516.7 | 17.8 | `bench_M512_N512_K512.json` |
-| 512x512x512 | v4_coarsened | 0.0818 | 3283.2 | 38.5 | `bench_M512_N512_K512.json` |
-| 512x512x512 | v5_regtile | 0.0941 | 2852.3 | 33.4 | `bench_M512_N512_K512.json` |
-| 512x512x512 | cublas | 0.0389 | 6904.2 | 80.9 | `bench_M512_N512_K512.json` |
+| 1024x1024x1024 | v0_naive | 2.4800 | 865.9 | 5.1 | `bench_M1024_N1024_K1024.json` |
+| 1024x1024x1024 | v1_coalesced | 2.2563 | 951.8 | 5.6 | `bench_M1024_N1024_K1024.json` |
+| 1024x1024x1024 | v2_tiled | 1.1277 | 1904.2 | 11.2 | `bench_M1024_N1024_K1024.json` |
+| 1024x1024x1024 | v3_tiled_vectorized | 1.2580 | 1707.1 | 10.0 | `bench_M1024_N1024_K1024.json` |
+| 1024x1024x1024 | v4_coarsened | 0.6544 | 3281.4 | 19.2 | `bench_M1024_N1024_K1024.json` |
+| 1024x1024x1024 | v5_regtile | 0.4096 | 5242.5 | 30.7 | `bench_M1024_N1024_K1024.json` |
+| 1024x1024x1024 | v6_vec_transposed | 0.3053 | 7033.7 | 41.2 | `bench_M1024_N1024_K1024.json` |
+| 1024x1024x1024 | cublas | 0.2214 | 9699.2 | 56.8 | `bench_M1024_N1024_K1024.json` |
+| 1024x1024x512 | v0_naive | 1.6069 | 668.2 | 5.2 | `bench_M1024_N1024_K512.json` |
+| 1024x1024x512 | v1_coalesced | 1.1383 | 943.3 | 7.4 | `bench_M1024_N1024_K512.json` |
+| 1024x1024x512 | v2_tiled | 0.5931 | 1810.5 | 14.1 | `bench_M1024_N1024_K512.json` |
+| 1024x1024x512 | v3_tiled_vectorized | 0.5909 | 1817.2 | 14.2 | `bench_M1024_N1024_K512.json` |
+| 1024x1024x512 | v4_coarsened | 0.2668 | 4024.3 | 31.4 | `bench_M1024_N1024_K512.json` |
+| 1024x1024x512 | v5_regtile | 0.2012 | 5337.1 | 41.7 | `bench_M1024_N1024_K512.json` |
+| 1024x1024x512 | v6_vec_transposed | 0.1608 | 6678.8 | 52.2 | `bench_M1024_N1024_K512.json` |
+| 1024x1024x512 | cublas | 0.1083 | 9918.5 | 77.5 | `bench_M1024_N1024_K512.json` |
+| 256x256x256 | v0_naive | 0.0724 | 463.2 | 10.9 | `bench_M256_N256_K256.json` |
+| 256x256x256 | v1_coalesced | 0.0356 | 943.0 | 22.1 | `bench_M256_N256_K256.json` |
+| 256x256x256 | v2_tiled | 0.0277 | 1212.2 | 28.4 | `bench_M256_N256_K256.json` |
+| 256x256x256 | v3_tiled_vectorized | 0.0287 | 1170.3 | 27.4 | `bench_M256_N256_K256.json` |
+| 256x256x256 | v4_coarsened | 0.0180 | 1865.8 | 43.7 | `bench_M256_N256_K256.json` |
+| 256x256x256 | v5_regtile | 0.0544 | 617.2 | 14.5 | `bench_M256_N256_K256.json` |
+| 256x256x256 | v6_vec_transposed | 0.0469 | 714.8 | 16.8 | `bench_M256_N256_K256.json` |
+| 256x256x256 | cublas | 0.0205 | 1635.8 | 38.3 | `bench_M256_N256_K256.json` |
+| 512x1024x1024 | v0_naive | 1.2743 | 842.6 | 6.6 | `bench_M512_N1024_K1024.json` |
+| 512x1024x1024 | v1_coalesced | 1.1385 | 943.1 | 7.4 | `bench_M512_N1024_K1024.json` |
+| 512x1024x1024 | v2_tiled | 0.6090 | 1763.1 | 13.8 | `bench_M512_N1024_K1024.json` |
+| 512x1024x1024 | v3_tiled_vectorized | 0.6142 | 1748.3 | 13.7 | `bench_M512_N1024_K1024.json` |
+| 512x1024x1024 | v4_coarsened | 0.2782 | 3859.5 | 30.2 | `bench_M512_N1024_K1024.json` |
+| 512x1024x1024 | v5_regtile | 0.1862 | 5765.4 | 45.0 | `bench_M512_N1024_K1024.json` |
+| 512x1024x1024 | v6_vec_transposed | 0.1517 | 7077.5 | 55.3 | `bench_M512_N1024_K1024.json` |
+| 512x1024x1024 | cublas | 0.1099 | 9771.2 | 76.3 | `bench_M512_N1024_K1024.json` |
+| 512x512x512 | v0_naive | 0.3376 | 795.2 | 9.3 | `bench_M512_N512_K512.json` |
+| 512x512x512 | v1_coalesced | 0.2601 | 1032.2 | 12.1 | `bench_M512_N512_K512.json` |
+| 512x512x512 | v2_tiled | 0.1852 | 1449.8 | 17.0 | `bench_M512_N512_K512.json` |
+| 512x512x512 | v3_tiled_vectorized | 0.1776 | 1511.7 | 17.7 | `bench_M512_N512_K512.json` |
+| 512x512x512 | v4_coarsened | 0.0826 | 3248.9 | 38.1 | `bench_M512_N512_K512.json` |
+| 512x512x512 | v5_regtile | 0.0947 | 2834.9 | 33.2 | `bench_M512_N512_K512.json` |
+| 512x512x512 | v6_vec_transposed | 0.0791 | 3392.1 | 39.8 | `bench_M512_N512_K512.json` |
+| 512x512x512 | cublas | 0.0397 | 6754.1 | 79.2 | `bench_M512_N512_K512.json` |
 <!-- RESULTS-END -->
 
 Plots: `results/plot_gflops.png` (median GFLOPS vs shape per kernel, generated by
@@ -117,15 +122,18 @@ any new bench run and commit the figure).
 ## Key lessons (measured — see `docs/WRITEUP.md` for evidence)
 
 - Occupancy + work-per-thread beat wider loads: `v4` (256-thread blocks, 2×2
-  outputs/thread) is 1.8× faster than `v2` at 1024³ (0.64 vs 1.13ms); `v3`'s
-  float4 loads never beat `v2` beyond noise (v3 1.31 vs v2 1.13ms at 1024³) —
+  outputs/thread) is 1.8× faster than `v2` at 1024³ (0.65 vs 1.13ms); `v3`'s
+  float4 loads never beat `v2` beyond noise (v3 1.26 vs v2 1.13ms at 1024³) —
   a recorded negative result.
 - Bigger tiles win big problems, starve small ones: `v5` (128-tile, 8×8/thread)
-  is 1.5× faster than `v4` at 1024³ (0.43 vs 0.64ms) but loses at 512³ and below
+  is 1.6× faster than `v4` at 1024³ (0.41 vs 0.65ms) but loses at 512³ and below
   (0.33× at 256³ — 4 blocks can't fill the GPU).
+- Layout + vectors stack on top: `v6` (float4 fills, transposed A tile) is 1.3×
+  faster than `v5` on every shape including 256³ (0.305 vs 0.41ms at 1024³) —
+  shared-memory layout was second-order, but not zero.
 - The vendor baseline earned its place twice: it caught our wrong-math OP_T
   emulation (fixed to OP_N, validated value-by-value), and it leads the best
-  custom kernel 2.0× at 1024³ (9804 vs 4997 GFLOPS).
+  custom kernel 1.4× at 1024³ (9699 vs 7034 GFLOPS).
 - Protocol before speed: `cudaEvent` kernel-only timing, warmup plus timed iters,
   median/min/p95, identical inputs, JSON evidence with environment metadata,
   repeat runs with a scripted >5% drift check (`scripts/check_repeat.py`).

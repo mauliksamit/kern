@@ -148,6 +148,10 @@ main(int argc, char** argv) {
       {65, 129, 9, "nonmult-128"},
       {130, 130, 130, "just-over-128"},
       {33, 17, 129, "k-129"},
+      // v6 vector-path stress: full 128-tiles (fast path) and mixed
+      // full/edge tiles (fast + fallback in one launch).
+      {128, 128, 128, "tile128-full"},
+      {200, 200, 200, "mixed-vec"},
   };
   // Magnitude coverage: second pass reuses a subset with extreme values.
   const Shape mag_shapes[] = {{32, 32, 64, "large-val"}, {32, 32, 64, "small-val"}};
@@ -161,7 +165,8 @@ main(int argc, char** argv) {
                  {"v2_tiled", kern::launch_v2_tiled},
                  {"v3_tiled_vectorized", kern::launch_v3_tiled_vectorized},
                  {"v4_coarsened", kern::launch_v4_coarsened},
-                 {"v5_regtile", kern::launch_v5_regtile}};
+                 {"v5_regtile", kern::launch_v5_regtile},
+                 {"v6_vec_transposed", kern::launch_v6_vec_transposed}};
 
   int total_bad = 0;
 #ifdef KERN_HAS_CUBLAS
