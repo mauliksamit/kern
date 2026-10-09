@@ -7,7 +7,7 @@ Why: a small, reproducible study of GPU performance work where every
 claim traces to a committed log file.
 
 Status: **measured on RTX 5070 (sm_120), 2026-10-09.** Correctness gate ALL PASS
-(60 checks: 12 shapes × 5 kernels + 12 cuBLAS-vs-reference), Compute Sanitizer
+(72 checks: 12 shapes × (5 kernels + cuBLAS)), Compute Sanitizer
 clean (memcheck/racecheck/synccheck/initcheck), bench run twice
 with drift check + adjudicating third run. Profiler counters are blocked on this
 WDDM machine (`ERR_NVGPUCTRPERM`, evidence in `results/ncu/`), so performance

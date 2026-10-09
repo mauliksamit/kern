@@ -32,21 +32,25 @@ re-verified today except as noted.
 | `cmake --version` | 4.4.3 |
 | MSVC `cl` | **19.44.35229** (VS 2022 Build Tools 17.14.41 + VCTools workload; installed 2026-10-03. NOTE: winget installed only the skeleton; the compiler required `vs_BuildTools.exe --add Microsoft.VisualStudio.Workload.VCTools` directly) |
 | `g++ --version` | 16.1.0 (MSYS2 Rev5) |
-| `clang-format --version` | **NOT FOUND** (format check skipped here; CI uses its own clang-format) |
-| `python --version` | 3.14.5 |
-| `git --version` | 2.55.0.windows.5 (repo not yet `git init` — bench JSONs record `"unknown"`) |
+| `clang-format --version` | **23.1.3** (via `pip install clang-format` in the Windows Python; pinned in CI) |
+| `python --version` | 3.14.5 (MSYS2, no pip — repo scripts run here; Windows pythoncore 3.14 has pip/matplotlib/torch-CPU) |
+| `git --version` | 2.55.0.windows.5 (repo initialized 2026-10-09; new bench JSONs stamp the short hash, older ones say `"unknown"`) |
 
 Compiler/CMake used for this record: MSVC vs MSYS2 g++ depends on the shell;
 the CMake CPU-only build works with either (verified below with the default generator).
 
 ## Profiler permission
 
-Shared/cloud GPUs often block profiler counters. This is a local WDDM GPU, but
-since the toolkit is not installed, profiler availability **and** permission are both
-**NOT RUN**. Mark profiler evidence `NOT RUN` and rely on
-`cudaEvent` timing plus clearly labeled analytical reasoning until `ncu` runs.
-WDDM + Nsight Compute generally works but some counters need TCC/admin; record the
-outcome of `scripts/run_ncu.sh` when you run it.
+Update 2026-10-09: toolkit IS installed (`ncu`/`compute-sanitizer` 2025.3.1.0).
+Counter permission was blocked at the 2026-10-09 attempt (`ERR_NVGPUCTRPERM`,
+log in `results/ncu/`); counters have since been enabled, so Phase 1
+re-runs `scripts/run_ncu.sh` and records the outcome here. Until fresh `ncu`
+output exists, profiler evidence stays `NOT RUN` — rely on
+`cudaEvent` timing plus clearly labeled analytical reasoning.
+
+Original note (kept for history): shared/cloud GPUs often block profiler
+counters. This is a local WDDM GPU; WDDM + Nsight Compute generally works but
+some counters need TCC/admin; record the outcome of `scripts/run_ncu.sh`.
 
 ## `-arch` decision
 
