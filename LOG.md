@@ -305,3 +305,19 @@
   FLOPs): v6 73x, cuBLAS 67x, v0 163x (cache cliff for no-reuse kernels).
   Tables (72 rows) + plot (9 shapes) regenerated; audit passes (441 traced).
 - Next: Phase 4 ml/transformer_gemm.py (venv + CUDA torch or NOT RUN).
+
+## 2026-10-09 — Phase 4: transformer GEMMs measured (torch cu130, compile NOT RUN)
+- Bottleneck: ladder-to-workload link was analytical only (roofline estimates).
+- Change: `ml/.venv` (Windows python, no elevation) + torch 2.14.1+cu130
+  (CUDA on sm_120 verified); `ml/transformer_gemm.py` (5 shapes: attn
+  512/2048 x 4096, FFN 11008 up/down; FP32 TF32-off asserted, CUDA events,
+  10+100 iters, median/min/p95, float64 numerics); C++ harness benched the
+  identical shapes first (results/ml_M*.json); `roofline.py --ml` places them.
+- Metric: eager FP32 9.3-10.4 TFLOPS, within 9% of cuBLAS harness (overhead ~=
+  noise); v6 trails eager 1.5-1.8x; numerics max rel err <=3.4e-06;
+  TF32-allowed row ~2x (separate, labeled); torch.compile NOT RUN
+  (TritonMissing, no native Windows Triton, no WSL per protocol) with exact
+  error in JSON + NEGATIVE #8. Claims audit extended to ML evidence +
+  TFLOPS/1000 rule; passes. Caveat recorded: torch/C++ draws differ (same
+  distribution; timing data-independent for dense GEMM).
+- Next: Phase 5 docs/finish (writeup per kernel, README, cold clone, audit).

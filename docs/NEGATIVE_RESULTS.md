@@ -53,3 +53,11 @@ measured misses here with the reason.
    No shape triggers it: the slowest single launch on record is v0 at 4096^3
    (405–408 ms across runs N/O/P) — 5x below the ~2 s Windows TDR limit. The
    path stays for any future shape beyond 4096.
+
+8. **torch.compile on native Windows — NOT RUN (environment limitation).**
+   `ml/transformer_gemm.py` (torch 2.14.1+cu130, RTX 5070 Laptop) records:
+   `TritonMissing: Cannot find a working triton installation. Either the
+   package is not installed or it is too old.` Triton has no native Windows
+   build; per protocol no WSL, no workarounds attempted. Eager FP32 measured
+   instead (9.3–10.4 TFLOPS, within 7% of the cuBLAS harness). See
+   `results/ml_transformer.json` and LOG.md.

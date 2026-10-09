@@ -328,15 +328,21 @@ re-running; the `-DKERN_CUDA_ARCH` flag and `tools/detect_arch.py` exist for tha
   missing end-to-end trace as a limitation (§11).
 - Bring-up lesson (transferable to any accelerator): silent hang → check barrier/uniformity contracts before blaming the
   toolchain; keep the wrong theory (SAC block) corrected in writing.
-- Planned `ml/` extension (not started): benchmark representative projection
-  shapes with PyTorch (eager vs compiled, latency/throughput/memory/numerics)
-  and use this ladder to explain the bottleneck. Only after core bench lands.
-  Status 2026-10-09: core bench HAS landed, but `torch` is not installed here
-  (verified `ModuleNotFoundError`) and the MSYS2 Python has no pip, so a
-  measured eager-vs-compiled experiment is deferred — exact next step:
-  install a CUDA torch build, run `ml/transformer_gemm.py` (to be written:
-  QKV/FFN-shaped GEMMs, eager vs `torch.compile`, latency + numerics vs this
-  ladder), commit its JSON next to `results/`.
+- Measured `ml/` extension (`ml/transformer_gemm.py`, torch 2.14.1+cu130 in
+  `ml/.venv`, RTX 5070 Laptop sm_120): 5 GEMM shapes (attn projections at 512
+  and 2048 tokens against d_model 4096; FFN width 11008 up/down). FP32 eager
+  `torch.matmul` (TF32 explicitly disabled, CUDA events, 10+100 iters,
+  median/min/p95, seed 0) reaches 9.3-10.4 TFLOPS - within 9% of the cuBLAS
+  C++ harness on identical shapes (framework overhead ≈ noise); best custom
+  kernel (v6) trails eager 1.5–1.8x on these shapes. Numerics vs float64
+  reference: max rel err 1.2e-06–3.4e-06. A clearly labeled TF32-allowed row
+  runs ~2x faster (tensor cores) and is never mixed into the FP32 comparison.
+  `torch.compile` NOT RUN (`TritonMissing`, no native Windows Triton — see
+  `docs/NEGATIVE_RESULTS.md` #8). Caveat: torch and C++ draws differ (own
+  RNGs, same distribution) — timing is data-independent for dense GEMM;
+  numerics are self-consistent within torch. Evidence:
+  `results/ml_transformer.json` + `results/ml_M*_N*_K*.json`; placement via
+  `scripts/roofline.py --ml`.
 - Down payment with zero new dependencies (`scripts/roofline.py`, self-check
   passes): a 4096-wide FFN up-projection at 512 tokens (M=512,N=4096,K=4096)
   needs 17.18 GFLOP at AI=204.8 FLOP/B — the same compute-leaning regime as the

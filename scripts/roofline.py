@@ -14,6 +14,9 @@ math is analytical (documented below), not a measurement.
 Usage:
   python3 scripts/roofline.py --M 512 --N 4096 --K 4096 --label ffn-up-proj
   python3 scripts/roofline.py --self-check   # validates math on 1024^3 vs JSON
+  python3 scripts/roofline.py --ml results/ml_transformer.json
+      # place each MEASURED torch shape at its AI with its measured GFLOPS
+      # (analytical model: AI math + nearest-ladder reference, labeled as such)
 """
 import glob
 import json
@@ -79,9 +82,40 @@ def self_check():
     return 0
 
 
+def report_ml(path):
+    """Place each measured torch shape at its AI with measured GFLOPS.
+
+    Analytical model (labeled as such): AI from dimensions; the torch GFLOPS
+    are measured (ml JSON); the nearest-ladder reference is measured (bench
+    JSONs). Only the intensity arithmetic is analytical.
+    """
+    with open(path) as f:
+        doc = json.load(f)
+    for s in doc.get("shapes", []):
+        M, K, N = s["M"], s["K"], s["N"]
+        flops, ideal_bytes, ai = stats(M, N, K)
+        g = s.get("eager", {}).get("gflops", float("nan"))
+        print(f"[{s['tag']}] M={M} K={K} N={N} AI={ai:.1f} FLOP/B, "
+              f"torch-eager {g:.1f} GFLOPS -> implied {g / ai:.1f} GB/s ideal")
+        try:
+            bpath, shape, top = nearest(M, N, K)
+        except (ValueError, KeyError, FileNotFoundError):
+            print("  no bench JSONs (NOT RUN)")
+            continue
+        print(f"  nearest ladder: {shape[0]}x{shape[1]}x{shape[2]} {top['kernel']} "
+              f"{top['gflops']:.1f} GFLOPS ({bpath})")
+    return 0
+
+
 def main():
     if "--self-check" in sys.argv:
         return self_check()
+    if "--ml" in sys.argv:
+        i = sys.argv.index("--ml")
+        if i + 1 >= len(sys.argv):
+            print(__doc__)
+            return 2
+        return report_ml(sys.argv[i + 1])
     args = {"--label": "gemm"}
     for i, a in enumerate(sys.argv[1:]):
         if a.startswith("--") and i + 1 < len(sys.argv[1:]):

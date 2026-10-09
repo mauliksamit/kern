@@ -171,6 +171,11 @@ any new bench run and commit the figure).
   repeat runs with a scripted >5% drift check (`scripts/check_repeat.py`).
 - Correctness-first ladder: each version is its own file with bounds-checked
   arbitrary sizes, so `git bisect` / per-version benching stays reproducible.
+- ML link, measured (`ml/transformer_gemm.py`, torch 2.14.1+cu130): FP32 eager
+  `torch.matmul` on transformer GEMMs (512/2048 tokens × 4096, FFN 11008)
+  matches the cuBLAS harness within 9% (framework overhead ≈ noise); v6 trails
+  eager 1.5–1.8×; `torch.compile` NOT RUN (no native Windows Triton).
+  Evidence: `results/ml_transformer.json`, `results/ml_M*_N*_K*.json`.
 
 ## Limitations
 

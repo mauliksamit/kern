@@ -51,6 +51,14 @@ def load_numbers():
         # Estimated FP32 peak (TFLOPS) lives in the JSON metadata.
         if "peak_fp32_tflops_est" in d:
             nums.append(float(d["peak_fp32_tflops_est"]))
+        # ML transformer JSON: measured torch medians/GFLOPS per config.
+        for s in d.get("shapes", []):
+            for cfg in ("eager", "compiled", "tf32_allowed"):
+                r = s.get(cfg, {})
+                if isinstance(r, dict):
+                    for key in ("median_ms", "min_ms", "p95_ms", "mean_ms", "gflops"):
+                        if key in r:
+                            nums.append(float(r[key]))
     return nums
 
 
@@ -72,8 +80,14 @@ def check_text(text, label, traced, failures):
         if "NOT RUN" in text[max(0, m.start() - 200):m.end()]:
             continue
         # Check traceability within 1% relative or small absolute tolerance.
-        ok = any(abs(val - t) <= max(0.01 * abs(t), 1e-6) or
-                 (unit.lower() == "ms" and abs(val - t) < 1e-3) for t in traced)
+        # TFLOPS claims may match GFLOPS evidence divided by 1000.
+        if unit.upper() == "TFLOPS":
+            ok = any(abs(val - t) <= max(0.01 * abs(t), 1e-6) or
+                     abs(val - t / 1000.0) <= max(0.01 * abs(t / 1000.0), 1e-9)
+                     for t in traced)
+        else:
+            ok = any(abs(val - t) <= max(0.01 * abs(t), 1e-6) or
+                     (unit.lower() == "ms" and abs(val - t) < 1e-3) for t in traced)
         if not ok and unit == "%":
             for a in traced:
                 for b in traced:
