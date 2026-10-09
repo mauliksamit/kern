@@ -83,6 +83,7 @@ private; the win, if any, comes from fully coalesced C stores and friendlier
 compiler vectorization of the A stream. Measured: 2.0× at 256³ (0.0724→0.0356 ms), shrinking to 1.10× at 1024³
 (2.4800→2.2563 ms) — mapping overhead matters most where kernels are short.
 The hypothesis held; magnitude varies by shape (`results/bench_*.json`).
+Profiler evidence for this step: NOT RUN (see §13).
 
 ## 5. Shared-memory tiling (v2)
 
@@ -131,6 +132,7 @@ measurement: the 1024-thread blocks were the binding constraint, not load width
 (§6). v4 reaches 25% of the estimated 13.13 TFLOPS FP32 peak; cuBLAS still leads
 3.2× (10456 GFLOPS) — the remaining gap is the vendor library's territory
 (tensor cores, swizzling, per-shape tuning), stated as future work, not failure.
+Profiler evidence for this step: NOT RUN (see §13).
 
 ## 8. Register blocking (v5 — MEASURED, confirmed at large shapes)
 
@@ -149,6 +151,7 @@ Crossover, stated plainly: v5 LOSES on small problems — 512^3: 0.0952 vs
 256-wide problem launches 4 blocks (1024 threads): the big tile starves
 parallelism where v4's 32-wide tiles fill the machine. Tile size is a bet on
 problem size; the ladder now shows both sides of it.
+Profiler evidence for this step: NOT RUN (see §13).
 
 What surprised us: the As column pattern aliases rows 8 apart onto identical
 bank sets (8 floats/row = one 32-bank period divisor), yet the 1.5x win came
@@ -177,6 +180,7 @@ fill is worth a consistent ~1.2-1.4x across all nine shapes, including the
 where parallelism is scarcest). v3's failure was being vector-only without
 register intensity; v6 has both. Remaining gap to cuBLAS (1.4x) is now in
 vendor territory: tensor cores, swizzling, async copies, per-shape tuning.
+Profiler evidence for this step: NOT RUN (see §13).
 
 ## 10. Register usage and occupancy (analysis; timing evidence measured, counters NOT RUN)
 

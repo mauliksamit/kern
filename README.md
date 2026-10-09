@@ -161,7 +161,8 @@ any new bench run and commit the figure).
   is 1.5× faster than `v4` at 1024³ (0.425 vs 0.64ms) but loses at 512³ and below
   (0.32× at 256³ — 4 blocks can't fill the GPU).
 - Layout + vectors stack on top: `v6` (float4 fills, transposed A tile) is 1.4×
-  faster than `v5` on every shape including 256³ (0.306 vs 0.425ms at 1024³) —
+  faster than `v5` on every shape including 256³ (0.306 vs 0.425ms at 1024³,
+  67% of cuBLAS) —
   shared-memory layout was second-order, but not zero.
 - The vendor baseline earned its place twice: it caught our wrong-math OP_T
   emulation (fixed to OP_N, validated value-by-value), and it leads the best
@@ -192,6 +193,17 @@ any new bench run and commit the figure).
 - `v2`/`v3` use 32x32 thread blocks (1024 threads, the architectural max):
   portable but occupancy-limited — which is exactly what `v4` (16x16 threads ×
   2x2 outputs) tested and confirmed (see `docs/WRITEUP.md`).
+- Laptop GPU (RTX 5070 Laptop, 75 W power cap, display-attached WDDM): clocks
+  swing run to run (observed SM boost 1447–2730 MHz across bench runs); medians
+  plus repeats plus drift adjudication carry the load this creates. Numbers
+  compare runs on this machine only.
+- FP32 peak (13.13 TFLOPS) is estimated from the driver-reported 1425 MHz SM
+  clock, but measured boost reaches 2730 MHz — the estimate is likely
+  understated, so achieved-% claims use it as a labeled estimate, not a roof.
+- No `nsys` on this machine: kernel-time (`cudaEvent`) only, no end-to-end
+  traces; operator-level GFLOPS is not end-to-end latency (see `docs/WRITEUP.md`
+  §16).
+
 
 ## References
 

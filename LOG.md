@@ -321,3 +321,15 @@
   TFLOPS/1000 rule; passes. Caveat recorded: torch/C++ draws differ (same
   distribution; timing data-independent for dense GEMM).
 - Next: Phase 5 docs/finish (writeup per kernel, README, cold clone, audit).
+
+## 2026-10-09 — Phase 5: docs finish, cold clone reproduces within 0.8%
+- Bottleneck: per-kernel profiler disclaimers missing; limitations incomplete;
+  no cold-clone proof for the final tree.
+- Change: one-line "Profiler evidence for this step: NOT RUN (see S13)" in
+  S4/S7/S8/S9 (S5/S6/S10/S13 already covered); README limitations += laptop
+  power/clock swings, peak-estimate caveat, no-nsys; claims audit already scans README+WRITEUP percentages.
+- Metric: cold clone (fresh git clone, README NMake+VsDevCmd commands):
+  configure OK, full CUDA build OK, ctest 3/3 pass, headline v6-1024^3
+  0.308224 ms vs committed 0.305664 ms (ratio 1.008, bar was 10%).
+  Tables fresh (72 rows), audit passes (736 traced), plot covers 9 shapes.
+- Next: commit Phase 5, push, final report.
