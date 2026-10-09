@@ -15,4 +15,4 @@ void launch_v2_tiled(const float* A, const float* B, float* C, int M, int N, int
 void launch_v3_tiled_vectorized(const float* A, const float* B, float* C, int M, int N, int K);
 void launch_v4_coarsened(const float* A, const float* B, float* C, int M, int N, int K);
 
-}  // namespace kern
+} // namespace kern

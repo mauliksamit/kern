@@ -11,26 +11,29 @@
 namespace kern {
 namespace {
 
-__global__ void v0_kernel(const float* __restrict__ A, const float* __restrict__ B,
-                          float* __restrict__ C, int M, int N, int K) {
+__global__ void
+v0_kernel(const float* __restrict__ A, const float* __restrict__ B, float* __restrict__ C, int M,
+          int N, int K) {
   int row = blockIdx.y * blockDim.y + threadIdx.y;
   int col = blockIdx.x * blockDim.x + threadIdx.x;
-  if (row >= M || col >= N) return;
+  if (row >= M || col >= N)
+    return;
   float acc = 0.0f;
-#pragma unroll 1  // v0: deliberately no unrolling; v3 tests unroll/vectorization.
+#pragma unroll 1 // v0: deliberately no unrolling; v3 tests unroll/vectorization.
   for (int k = 0; k < K; ++k) {
     acc += A[row * K + k] * B[k * N + col];
   }
   C[row * N + col] = acc;
 }
 
-}  // namespace
+} // namespace
 
-void launch_v0_naive(const float* A, const float* B, float* C, int M, int N, int K) {
+void
+launch_v0_naive(const float* A, const float* B, float* C, int M, int N, int K) {
   dim3 block(16, 16);
   dim3 grid((N + block.x - 1) / block.x, (M + block.y - 1) / block.y);
   v0_kernel<<<grid, block>>>(A, B, C, M, N, K);
   CUDA_CHECK_LAST_ERROR();
 }
 
-}  // namespace kern
+} // namespace kern

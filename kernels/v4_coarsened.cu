@@ -11,20 +11,21 @@
 // Bounds: same predicated zero-fill tile loads as v2 plus 4 guarded stores.
 // Adapted idea note: thread coarsening per CUDA C++ Best Practices Guide;
 // implementation written from scratch, see docs/REFERENCES.md.
-#include <cstddef>
-
 #include "kern/cuda_check.h"
 #include "kern/kernels.h"
+
+#include <cstddef>
 
 namespace kern {
 namespace {
 
-constexpr int TILE = 32;    // output tile edge (same as v2)
-constexpr int BLOCK = 16;   // threads per block edge (256 threads total)
-constexpr int COARSE = 2;   // outputs per thread edge (2x2 micro-tile)
+constexpr int TILE = 32;  // output tile edge (same as v2)
+constexpr int BLOCK = 16; // threads per block edge (256 threads total)
+constexpr int COARSE = 2; // outputs per thread edge (2x2 micro-tile)
 
-__global__ void v4_kernel(const float* __restrict__ A, const float* __restrict__ B,
-                          float* __restrict__ C, int M, int N, int K) {
+__global__ void
+v4_kernel(const float* __restrict__ A, const float* __restrict__ B, float* __restrict__ C, int M,
+          int N, int K) {
   __shared__ float As[TILE][TILE];
   __shared__ float Bs[TILE][TILE];
 
@@ -37,11 +38,11 @@ __global__ void v4_kernel(const float* __restrict__ A, const float* __restrict__
   for (int t = 0; t < numTiles; ++t) {
     // Cooperative tile load: 256 threads x 4 elements each = full 32x32 tile.
     // Element (r, c) of the tile is loaded by thread (r/2... ) via linear id.
-    int tid = threadIdx.y * BLOCK + threadIdx.x;  // 0..255
+    int tid = threadIdx.y * BLOCK + threadIdx.x; // 0..255
 #pragma unroll
     for (int e = 0; e < 4; ++e) {
       int elem = tid * 4 + e;
-      int lr = elem / TILE, lc = elem % TILE;  // local tile coords
+      int lr = elem / TILE, lc = elem % TILE; // local tile coords
       int aCol = t * TILE + lc;
       int bRow = t * TILE + lr;
       int gRow = blockIdx.y * TILE + lr;
@@ -67,18 +68,20 @@ __global__ void v4_kernel(const float* __restrict__ A, const float* __restrict__
 #pragma unroll
     for (int j = 0; j < COARSE; ++j) {
       int r = baseRow + i, c = baseCol + j;
-      if (r < M && c < N) C[(std::size_t)r * N + c] = acc[i][j];
+      if (r < M && c < N)
+        C[(std::size_t)r * N + c] = acc[i][j];
     }
   }
 }
 
-}  // namespace
+} // namespace
 
-void launch_v4_coarsened(const float* A, const float* B, float* C, int M, int N, int K) {
+void
+launch_v4_coarsened(const float* A, const float* B, float* C, int M, int N, int K) {
   dim3 block(BLOCK, BLOCK);
   dim3 grid((N + TILE - 1) / TILE, (M + TILE - 1) / TILE);
   v4_kernel<<<grid, block>>>(A, B, C, M, N, K);
   CUDA_CHECK_LAST_ERROR();
 }
 
-}  // namespace kern
+} // namespace kern

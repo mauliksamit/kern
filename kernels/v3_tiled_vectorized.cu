@@ -17,19 +17,19 @@
 // is (1024, 1). See LOG.md.
 // Adapted idea note: vectorization guidance per CUDA C++ Best Practices Guide;
 // implementation written from scratch, see docs/REFERENCES.md.
-#include <cstdint>
-
 #include "kern/cuda_check.h"
 #include "kern/kernels.h"
+
+#include <cstdint>
 
 namespace kern {
 namespace {
 
 constexpr int TILE = 32;
 
-__global__ void __launch_bounds__(1024, 1)
-    v3_kernel(const float* __restrict__ A, const float* __restrict__ B,
-              float* __restrict__ C, int M, int N, int K) {
+__global__ void
+__launch_bounds__(1024, 1) v3_kernel(const float* __restrict__ A, const float* __restrict__ B,
+                                     float* __restrict__ C, int M, int N, int K) {
   __shared__ float As[TILE][TILE];
   __shared__ float Bs[TILE][TILE];
 
@@ -38,7 +38,7 @@ __global__ void __launch_bounds__(1024, 1)
   float acc = 0.0f;
 
   int numTiles = (K + TILE - 1) / TILE;
-  int tid = threadIdx.y * TILE + threadIdx.x;  // 0..1023 linear id in block
+  int tid = threadIdx.y * TILE + threadIdx.x; // 0..1023 linear id in block
   // Each thread covers 8 floats in the vectorized path (32x32/128 threads...).
   // Simpler model: threads with tid < 256 cooperatively load As/Bs as float4.
   for (int t = 0; t < numTiles; ++t) {
@@ -58,11 +58,13 @@ __global__ void __launch_bounds__(1024, 1)
     if (fullK && fullRow && fullCol && aligned) {
       // Vectorized cooperative load: 256 threads x float4 = 1024 floats = one 32x32 tile.
       if (tid < 256) {
-        int base = tid * 4;  // element offset inside tile
+        int base = tid * 4; // element offset inside tile
         int ar = base / TILE, ac = base % TILE;
         int br = base / TILE, bc = base % TILE;
-        float4 a4 = reinterpret_cast<const float4*>(A + (blockIdx.y * TILE + ar) * K + tileK + ac)[0];
-        float4 b4 = reinterpret_cast<const float4*>(B + (tileK + br) * N + blockIdx.x * TILE + bc)[0];
+        float4 a4 =
+            reinterpret_cast<const float4*>(A + (blockIdx.y * TILE + ar) * K + tileK + ac)[0];
+        float4 b4 =
+            reinterpret_cast<const float4*>(B + (tileK + br) * N + blockIdx.x * TILE + bc)[0];
         As[ar][ac] = a4.x;
         As[ar][ac + 1] = a4.y;
         As[ar][ac + 2] = a4.z;
@@ -87,16 +89,18 @@ __global__ void __launch_bounds__(1024, 1)
     }
     __syncthreads();
   }
-  if (row < M && col < N) C[row * N + col] = acc;
+  if (row < M && col < N)
+    C[row * N + col] = acc;
 }
 
-}  // namespace
+} // namespace
 
-void launch_v3_tiled_vectorized(const float* A, const float* B, float* C, int M, int N, int K) {
+void
+launch_v3_tiled_vectorized(const float* A, const float* B, float* C, int M, int N, int K) {
   dim3 block(TILE, TILE);
   dim3 grid((N + TILE - 1) / TILE, (M + TILE - 1) / TILE);
   v3_kernel<<<grid, block>>>(A, B, C, M, N, K);
   CUDA_CHECK_LAST_ERROR();
 }
 
-}  // namespace kern
+} // namespace kern

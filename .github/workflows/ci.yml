@@ -10,6 +10,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+      - name: clang-format check (pinned, same version as local dev)
+        run: |
+          python3 -m pip install "clang-format==23.1.3"
+          clang-format --dry-run --Werror kernels/*.cu src/*.cu src/*.cpp include/kern/*.h tests/correctness.cu
       - name: CPU reference tests
         run: python3 tests/test_correctness_cpu.py
       - name: Claims audit (README numbers trace to results/)

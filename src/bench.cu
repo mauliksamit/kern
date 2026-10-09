@@ -15,6 +15,9 @@
 // Usage:
 //   kern_bench --M 1024 --N 1024 --K 1024 --seed 0 --out results/bench_M1024_N1024_K1024.json
 //   kern_bench --all  (runs 256/512/1024 square + 2 rect shapes, one JSON each)
+#include "kern/cuda_check.h"
+#include "kern/kernels.h"
+
 #include <algorithm>
 #include <cstdio>
 #include <cstdlib>
@@ -23,9 +26,6 @@
 #include <random>
 #include <string>
 #include <vector>
-
-#include "kern/cuda_check.h"
-#include "kern/kernels.h"
 
 // CUDA 13 removed clock fields (clockRate, memoryClockRate) from cudaDeviceProp.
 // Clocks are queried via the driver API (cuDeviceGetAttribute) instead; the
@@ -43,20 +43,23 @@ namespace {
 
 struct Timing {
   std::string name;
-  std::vector<float> iters_ms;  // per-iteration kernel time.
+  std::vector<float> iters_ms; // per-iteration kernel time.
   double median_ms = 0, min_ms = 0, p95_ms = 0, mean_ms = 0;
-  double gflops = 0, gbps = 0;  // derived from median.
-  bool failed = false;          // true if the backend reported failure (no valid timing).
+  double gflops = 0, gbps = 0; // derived from median.
+  bool failed = false;         // true if the backend reported failure (no valid timing).
 };
 
-double percentile(std::vector<float> v, double p) {
+double
+percentile(std::vector<float> v, double p) {
   std::sort(v.begin(), v.end());
-  if (v.empty()) return 0;
+  if (v.empty())
+    return 0;
   std::size_t i = static_cast<std::size_t>(p * (v.size() - 1));
   return v[i];
 }
 
-std::string git_commit() {
+std::string
+git_commit() {
   // Best-effort: baked at configure time would be nicer; runtime popen keeps
   // the binary portable. "unknown" if git is absent (e.g. exported tarball).
   FILE* p = nullptr;
@@ -75,13 +78,14 @@ std::string git_commit() {
 #endif
   }
   std::string s(buf);
-  while (!s.empty() && (s.back() == '\n' || s.back() == '\r')) s.pop_back();
+  while (!s.empty() && (s.back() == '\n' || s.back() == '\r'))
+    s.pop_back();
   return s.empty() ? "unknown" : s;
 }
 
-void time_kernel(const char* name, void (*launch)(const float*, const float*, float*, int, int, int),
-                 const float* dA, const float* dB, float* dC, int M, int N, int K,
-                 Timing& out) {
+void
+time_kernel(const char* name, void (*launch)(const float*, const float*, float*, int, int, int),
+            const float* dA, const float* dB, float* dC, int M, int N, int K, Timing& out) {
   out.name = name;
   // Warmup (>=10).
   for (int i = 0; i < 10; ++i) {
@@ -121,15 +125,14 @@ void time_kernel(const char* name, void (*launch)(const float*, const float*, fl
   out.min_ms = s.front();
   out.median_ms = percentile(s, 0.5);
   out.p95_ms = percentile(s, 0.95);
-  out.mean_ms =
-      std::accumulate(s.begin(), s.end(), 0.0) / static_cast<double>(s.size());
+  out.mean_ms = std::accumulate(s.begin(), s.end(), 0.0) / static_cast<double>(s.size());
   double t_s = out.median_ms / 1e3;
   double flops = 2.0 * (double)M * (double)N * (double)K;
   double bytes = ((double)M * K + (double)K * N + (double)M * N) * 4.0;
   out.gflops = flops / t_s / 1e9;
   out.gbps = bytes / t_s / 1e9;
-  std::printf("  %-18s median=%9.4f ms  min=%9.4f  p95=%9.4f  GFLOPS=%9.1f  GB/s=%8.1f%s\n",
-              name, out.median_ms, out.min_ms, out.p95_ms, out.gflops, out.gbps,
+  std::printf("  %-18s median=%9.4f ms  min=%9.4f  p95=%9.4f  GFLOPS=%9.1f  GB/s=%8.1f%s\n", name,
+              out.median_ms, out.min_ms, out.p95_ms, out.gflops, out.gbps,
               reduced ? "  [iters=10: single run >100ms]" : "");
 }
 
@@ -137,8 +140,9 @@ void time_kernel(const char* name, void (*launch)(const float*, const float*, fl
 // Returns true on success; on cuBLAS failure returns false with err set (the
 // caller records a "failed" JSON entry instead of aborting, so one bad shape
 // cannot destroy the other shapes' timings in --all mode).
-bool time_cublas(cublasHandle_t h, const float* dA, const float* dB, float* dC, int M, int N,
-                 int K, Timing& out, std::string& err) {
+bool
+time_cublas(cublasHandle_t h, const float* dA, const float* dB, float* dC, int M, int N, int K,
+            Timing& out, std::string& err) {
   // cuBLAS is column-major. Row-major C = A*B (A: MxK, B: KxN) is equivalent to
   // col-major C^T = B^T * A^T. A row-major MxK buffer viewed column-major IS the
   // KxM transpose, so pass the buffers swapped with CUBLAS_OP_N (no transpose
@@ -153,8 +157,7 @@ bool time_cublas(cublasHandle_t h, const float* dA, const float* dB, float* dC, 
   out.failed = false;
   const float alpha = 1.0f, beta = 0.0f;
   auto sgemm = [&]() {
-    return cublasSgemm(h, CUBLAS_OP_N, CUBLAS_OP_N, N, M, K, &alpha, dB, N, dA, K, &beta,
-                       dC, N);
+    return cublasSgemm(h, CUBLAS_OP_N, CUBLAS_OP_N, N, M, K, &alpha, dB, N, dA, K, &beta, dC, N);
   };
   for (int i = 0; i < 10; ++i) {
     cublasStatus_t st = sgemm();
@@ -206,19 +209,22 @@ bool time_cublas(cublasHandle_t h, const float* dA, const float* dB, float* dC, 
   double t_s = out.median_ms / 1e3;
   out.gflops = (2.0 * M * N * K) / t_s / 1e9;
   out.gbps = ((double(M * K + K * N + M * N)) * 4.0) / t_s / 1e9;
-  std::printf("  %-18s median=%9.4f ms  min=%9.4f  p95=%9.4f  GFLOPS=%9.1f  GB/s=%8.1f\n",
-              "cublas", out.median_ms, out.min_ms, out.p95_ms, out.gflops, out.gbps);
+  std::printf("  %-18s median=%9.4f ms  min=%9.4f  p95=%9.4f  GFLOPS=%9.1f  GB/s=%8.1f\n", "cublas",
+              out.median_ms, out.min_ms, out.p95_ms, out.gflops, out.gbps);
   return true;
 }
 #endif
 
-void run_one(int M, int N, int K, int seed, const std::string& out_path) {
+void
+run_one(int M, int N, int K, int seed, const std::string& out_path) {
   std::printf("[bench] M=%d N=%d K=%d seed=%d\n", M, N, K, seed);
   std::mt19937 rng((unsigned)seed);
   std::uniform_real_distribution<float> d(-1.0f, 1.0f);
   std::vector<float> hA((std::size_t)M * K), hB((std::size_t)K * N);
-  for (auto& x : hA) x = d(rng);
-  for (auto& x : hB) x = d(rng);
+  for (auto& x : hA)
+    x = d(rng);
+  for (auto& x : hB)
+    x = d(rng);
 
   float *dA = nullptr, *dB = nullptr, *dC = nullptr;
   CUDA_CHECK(cudaMalloc(&dA, hA.size() * sizeof(float)));
@@ -232,8 +238,7 @@ void run_one(int M, int N, int K, int seed, const std::string& out_path) {
   time_kernel("v0_naive", kern::launch_v0_naive, dA, dB, dC, M, N, K, ts[0]);
   time_kernel("v1_coalesced", kern::launch_v1_coalesced, dA, dB, dC, M, N, K, ts[1]);
   time_kernel("v2_tiled", kern::launch_v2_tiled, dA, dB, dC, M, N, K, ts[2]);
-  time_kernel("v3_tiled_vectorized", kern::launch_v3_tiled_vectorized, dA, dB, dC, M, N, K,
-              ts[3]);
+  time_kernel("v3_tiled_vectorized", kern::launch_v3_tiled_vectorized, dA, dB, dC, M, N, K, ts[3]);
   time_kernel("v4_coarsened", kern::launch_v4_coarsened, dA, dB, dC, M, N, K, ts[4]);
 #if KERN_BENCH_HAS_CUBLAS
   cublasHandle_t h;
@@ -299,8 +304,8 @@ void run_one(int M, int N, int K, int seed, const std::string& out_path) {
                  "    {\"kernel\": \"%s\", \"failed\": %s, \"median_ms\": %.6f, \"min_ms\": %.6f, "
                  "\"p95_ms\": %.6f, \"mean_ms\": %.6f, \"gflops\": %.3f, \"gbps\": %.3f, "
                  "\"iters\": [",
-                 ts[i].name.c_str(), ts[i].failed ? "true" : "false", ts[i].median_ms,
-                 ts[i].min_ms, ts[i].p95_ms, ts[i].mean_ms, ts[i].gflops, ts[i].gbps);
+                 ts[i].name.c_str(), ts[i].failed ? "true" : "false", ts[i].median_ms, ts[i].min_ms,
+                 ts[i].p95_ms, ts[i].mean_ms, ts[i].gflops, ts[i].gbps);
     for (std::size_t j = 0; j < ts[i].iters_ms.size(); ++j) {
       std::fprintf(f, "%s%.6f", j ? ", " : "", ts[i].iters_ms[j]);
     }
@@ -316,19 +321,26 @@ void run_one(int M, int N, int K, int seed, const std::string& out_path) {
   CUDA_CHECK(cudaFree(dC));
 }
 
-}  // namespace
+} // namespace
 
-int main(int argc, char** argv) {
+int
+main(int argc, char** argv) {
   int M = 1024, N = 1024, K = 1024, seed = 0;
   std::string out = "results/bench_M1024_N1024_K1024.json";
   bool all = false;
   for (int i = 1; i < argc; ++i) {
-    if (strcmp(argv[i], "--M") == 0 && i + 1 < argc) M = atoi(argv[++i]);
-    else if (strcmp(argv[i], "--N") == 0 && i + 1 < argc) N = atoi(argv[++i]);
-    else if (strcmp(argv[i], "--K") == 0 && i + 1 < argc) K = atoi(argv[++i]);
-    else if (strcmp(argv[i], "--seed") == 0 && i + 1 < argc) seed = atoi(argv[++i]);
-    else if (strcmp(argv[i], "--out") == 0 && i + 1 < argc) out = argv[++i];
-    else if (strcmp(argv[i], "--all") == 0) all = true;
+    if (strcmp(argv[i], "--M") == 0 && i + 1 < argc)
+      M = atoi(argv[++i]);
+    else if (strcmp(argv[i], "--N") == 0 && i + 1 < argc)
+      N = atoi(argv[++i]);
+    else if (strcmp(argv[i], "--K") == 0 && i + 1 < argc)
+      K = atoi(argv[++i]);
+    else if (strcmp(argv[i], "--seed") == 0 && i + 1 < argc)
+      seed = atoi(argv[++i]);
+    else if (strcmp(argv[i], "--out") == 0 && i + 1 < argc)
+      out = argv[++i];
+    else if (strcmp(argv[i], "--all") == 0)
+      all = true;
   }
   if (!all) {
     run_one(M, N, K, seed, out);

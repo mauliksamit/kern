@@ -163,3 +163,29 @@
 - Next: push to GitHub (creates remote; CI runs CPU checks),
   optional torch `ml/` experiment per WRITEUP section 13, optional ncu run on
   a counter-permitted machine per `scripts/run_ncu.sh`.
+
+## 2026-10-09 — Independent audit: no v2/v4 swap; format + CI + rounding fixes
+- Audit premise (v2=0.62 / v4=1.17 swap at 1024^3): NOT FOUND in any file.
+  Recomputed all 30 bench cells from raw `iters` arrays: medians exact,
+  GFLOPS/GB/s recompute from dims (2MNK/t, ideal-bytes/t). Raw 1024^3:
+  v2 median 1.167232 ms / 1839.81 GFLOPS, v4 median 0.621248 ms / 3456.72
+  GFLOPS (v4/v2 = 1.88x). README table (generated), WRITEUP sections 7/9,
+  LOG, plot all attribute v2=1.17 / v4=0.62 consistently.
+  The reported swap exists nowhere in the repo; claim stands as written.
+
+- Confirmed issue 2 (fixed): `near()` comment claimed sqrt(K) abs_tol scaling
+  that the code (intentional `*= 1.0f` no-op anchor) does not do — comment now
+  describes actual behavior. No test change (all pass with margin).
+- Confirmed gap 3 (fixed): the CI was meant to check formatting; ci.yml lacked it.
+  Added pinned `clang-format==23.1.3` dry-run step (same version run locally);
+  reformatted 11 source files (token-diff: include regrouping only, verified
+  neutral), rebuilt, ctest 3/3 passes. Remote CI result still pending
+  (cannot claim passed until observed).
+- Verification: fresh `git clone` to temp dir + full NMake/CUDA configure +
+  build = COLD-BUILD-OK; cold ctest 3/3 (incl. gpu_correctness ALL PASS).
+  Sanitizer batch re-run on formatted binaries: 4/4 clean (0 errors/hazards).
+- Evidence notes: correctness JSON stays minimal (per-case lines in sanitizer
+  logs: 73 PASS / 0 FAIL each); bench JSON `git_commit: unknown` mapped to
+  commits in this LOG entry of 2026-10-09 (tree was clean); no remote
+  configured — no push destination yet; PyTorch work deferred
+  (roofline analysis only, no new deps).

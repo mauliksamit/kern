@@ -14,11 +14,13 @@ namespace {
 
 constexpr int V1_BLOCK = 256;
 
-__global__ void v1_kernel(const float* __restrict__ A, const float* __restrict__ B,
-                          float* __restrict__ C, int M, int N, int K) {
+__global__ void
+v1_kernel(const float* __restrict__ A, const float* __restrict__ B, float* __restrict__ C, int M,
+          int N, int K) {
   int tid = blockIdx.x * blockDim.x + threadIdx.x;
   int total = M * N;
-  if (tid >= total) return;
+  if (tid >= total)
+    return;
   int row = tid / N;
   int col = tid % N;
   float acc = 0.0f;
@@ -30,9 +32,10 @@ __global__ void v1_kernel(const float* __restrict__ A, const float* __restrict__
   C[tid] = acc;
 }
 
-}  // namespace
+} // namespace
 
-void launch_v1_coalesced(const float* A, const float* B, float* C, int M, int N, int K) {
+void
+launch_v1_coalesced(const float* A, const float* B, float* C, int M, int N, int K) {
   int total = M * N;
   dim3 block(V1_BLOCK);
   dim3 grid((total + V1_BLOCK - 1) / V1_BLOCK);
@@ -40,4 +43,4 @@ void launch_v1_coalesced(const float* A, const float* B, float* C, int M, int N,
   CUDA_CHECK_LAST_ERROR();
 }
 
-}  // namespace kern
+} // namespace kern
