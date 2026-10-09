@@ -1,0 +1,255 @@
+# Writeup — SGEMM optimization ladder
+
+Status 2026-10-09: **measured on RTX 5070 (sm_120, CUDA 13.0, driver 617.14).**
+Correctness ALL PASS (60 checks), sanitizer clean (4 tools), bench run twice
+(runs D/E) with scripted drift check plus an adjudicating run C for the one
+drifting cell. Profiler counters blocked (`ERR_NVGPUCTRPERM`, attempt log in
+`results/ncu/`) — performance claims rest on `cudaEvent` timing plus labeled
+analytical reasoning. Every measured number below comes from `results/`.
+
+## 1. Problem definition and row-major representation
+
+Compute `C = A·B` in FP32 with all matrices row-major: `A` is M×K, `B` is K×N,
+`C` is M×N, element `C[i][j] = Σ_k A[i*K+k]·B[k*N+j]`. Row-major means row `i`
+of `A` occupies contiguous addresses `A[i*K .. i*K+K)`; column `j` of `B`
+(`B[k*N+j]` over `k`) is strided by `N`. That asymmetry drives the whole ladder:
+`A` is naturally streamable along rows, `B` is not, so every version is really an
+answer to "how do we feed `B` to 1000s of threads without re-reading DRAM?"
+
+## 2. Correctness methodology and numerical tolerances (MEASURED)
+
+Ground truth: `src/matmul_cpu.cpp` accumulates each dot product in `double`,
+rounding once to float. GPU kernels accumulate in `float` (deliberately — the
+benchmark must reflect real SGEMM throughput, not mixed precision; rejected
+alternative in `docs/NEGATIVE_RESULTS.md`).
+
+Tolerance (`include/kern/matmul_cpu.h:near`): `|got−ref| ≤ 1e-4 + 1e-4·|ref|`.
+Justification: float dot-product error grows ~`K·eps` (`eps ≈ 1.2e-7`); for
+`K ≤ 1024` and `|elements| ≤ 1` the absolute bound ≈ 1e-4. The relative term
+covers large magnitudes, the absolute floor covers small ones — each with a
+dedicated shape (1e9–1e10 and 1e-11–1e-10 ranges).
+
+Gate (`tests/correctness.cu`, seed 1234): 12 shapes × (5 kernels + cuBLAS) =
+72 checks — size-1, row/col vectors, small primes (7×13×5), non-multiples
+(31×33×17, 100×97×63), tile-aligned 64³, rect-large-K, 512³, large-odd
+1023×513×257, plus both magnitude extremes. Result
+(`results/correctness_seed1234.json`, `bad=0`):
+
+| Shape class | Worst abs err (all 5 kernels agree) |
+|---|---|
+| 1×1×1 | 0 |
+| K ≤ 17 shapes | ≤ 7.15e-07 |
+| 64³ / 100×97×63 | 2.38e-06 / 3.81e-06 |
+| K=512 shapes | 2.67e-05 – 3.24e-05 |
+| 1023×513×257 (K=257) | 1.72e-05 |
+| large-val (rel-tol regime) | 8.44e+14 abs (≈1e-5 relative — passes by design) |
+| small-val (abs-floor regime) | 6.46e-26 |
+
+Error scales with K as the model predicts; no kernel differs from any other
+beyond float rounding. cuBLAS-vs-reference passes on all 12 shapes with
+*smaller* worst errors than the custom kernels (e.g. 1.14e-05 vs 3.24e-05 at
+512³) — the vendor kernel's blocking/accumulation order rounds better, an
+independent confirmation the baseline computes the same math. Sanitizer:
+memcheck/racecheck/synccheck/initcheck all clean on final binaries
+(`results/sanitizer/*.log`: 0 errors, racecheck 0 hazards).
+
+## 3. Kernel execution model
+
+All kernels map the M×N output domain onto a CUDA grid; each thread owns one `C`
+element (no coarsening yet — see §10). `v0` uses 2D 16×16 blocks over a 2D grid
+(`kernels/v0_naive.cu`); `v1` flattens to a 1D grid of 256-thread blocks with
+`row = tid / N, col = tid % N`; `v2`/`v3` use 2D 32×32 blocks = 1024 threads
+(the architectural maximum — portable but occupancy-limited, §8). Every launch
+is followed by `CUDA_CHECK_LAST_ERROR()` (`include/kern/cuda_check.h`), and
+`CUDA_SYNC_DEBUG()` synchronizes in non-`NDEBUG` builds. All versions
+bounds-check, so arbitrary M/N/K are correct (edge tiles zero-fill in
+v2/v3, guarded stores everywhere).
+
+## 4. Global-memory access patterns (v0 → v1)
+
+`v0`'s inner loop (`v0_naive.cu:21-23`) reads `A[row*K+k]` (sequential per
+thread, but `row`-strided across a warp — 32 different cache lines per step)
+and `B[k*N+col]` (consecutive across a warp for fixed `k` — coalesced — but
+re-read from DRAM for every output row, zero reuse). Arithmetic intensity ≈
+2 flops / 8 bytes ≈ 0.25 FLOP/B: hopelessly DRAM-bound on any modern GPU. The
+naive "B is uncoalesced" telling is imprecise — the warp's B accesses for fixed
+`k` are contiguous; the actual disease is no reuse (each `B` element read M
+times, each `A` element N times).
+
+`v1` (`v1_coalesced.cu`) changes only the mapping: flattened 1D grid,
+`__restrict__`, stores to contiguous `C[tid]`. A-row reads stay per-thread
+private; the win, if any, comes from fully coalesced C stores and friendlier
+compiler vectorization of the A stream. Hypothesis (to be confirmed by bench):
+modest gain on large N, possibly within noise — a within-noise result goes to
+`docs/NEGATIVE_RESULTS.md`, the file stays for reproducibility.
+
+## 5. Shared-memory tiling (v2)
+
+`v2` (`v2_tiled.cu:18-43`) loads each 32×32 patch of `A`/`B` once into
+`__shared__` (8 KB total: 2 tiles × 1024 floats), then accumulates from shared.
+Global traffic per output tile drops from `2·32·32·32` reads to
+`2·32·32` per K-tile — a ~32× reduction for large K. `B` is served from shared
+(broadcast/column reads) instead of strided DRAM. Bank conflicts: `As[ty][k]`
+is a same-address broadcast per warp row (no conflict); `Bs[k][tx]` touches 32
+distinct banks (no conflict) — expect ≈ 0, to confirm with `ncu` (PENDING).
+Two `__syncthreads()` per K-tile (after fill, after compute) are required and
+uniform. Non-multiples handled by predicated zero-fill loads + guarded store.
+
+## 6. Vectorization and alignment (v3)
+
+`v3` (`v3_tiled_vectorized.cu`) keeps the v2 structure and vectorizes only the
+tile *fill*: 256 threads × `float4` = 1024 floats per tile, halving global
+transactions on the fast path, with `#pragma unroll` on the compute loop and
+`__launch_bounds__(1024,1)` (the `(1024,2)` hint was rejected by ptxas — SM
+residency — see `LOG.md` 2026-10-03).
+
+Correctness subtlety (the project's best bug story): the fast-path decision
+must be **block-uniform** because both branches contain `__syncthreads()`.
+The original code tested alignment from per-thread `(row, col)` pointers, so
+threads in one block disagreed whenever `K % 4 ≠ 0` or `N % 4 ≠ 0` — divergent
+barriers, undefined behavior, silent hang (binary produced zero output in
+120 s). The fix computes alignment from tile-base pointers and additionally
+requires `K % 4 == 0 && N % 4 == 0`, which is exactly the condition making
+every row share the base pointer's 16B alignment (float = 4B; element index
+`p` is 16B-aligned iff `p % 4 == 0`). Post-fix: full gate ALL PASS in <45 s.
+Reference: CUDA Programming Guide barrier-uniformity rule
+(`docs/REFERENCES.md` #7). Edge/misaligned shapes take the scalar fallback and
+are covered by the awkward-shape gate.
+
+## 7. Thread coarsening and occupancy (v4 — MEASURED, hypothesis confirmed)
+
+`v4` (`kernels/v4_coarsened.cu`) keeps v2's 32×32 output tile and shared-memory
+algorithm but launches 16×16 = 256 threads, each accumulating a 2×2 micro-tile
+in registers (4× the work per thread; A-row/B-column elements reused across the
+micro-tile; 4× more blocks eligible for concurrent residency). Tile fill is
+cooperative (256 threads × 4 elements). Result at 1024³: **0.62ms vs v2's
+1.17ms — 1.9× faster** (3457 vs 1839 GFLOPS); 512³: 2.2× (0.0815 vs 0.1791ms);
+rect shapes ≈ 2.2×. The occupancy/work-per-thread hypothesis is confirmed by
+measurement: the 1024-thread blocks were the binding constraint, not load width
+(§6). v4 reaches 26% of the estimated 13.13 TFLOPS FP32 peak; cuBLAS still leads
+2.7× (9508 GFLOPS) — the remaining gap is the vendor library's territory
+(tensor cores, swizzling, per-shape tuning), stated as future work, not failure.
+
+## 8. Register usage and occupancy (analysis; timing evidence measured, counters NOT RUN)
+
+`v2`/`v3` run 1024 threads/block with 8 KB shared per block. Most SMs cannot
+co-reside two such blocks (thread-count and shared-memory limits), so occupancy
+is structurally capped — one resident block per SM means latency hiding rests
+entirely on the 1024 threads' own parallelism, and register pressure per thread
+directly trades against nothing (no second block to make room for). v4 tested
+exactly this (§7) and the 1.9–2.2× win confirms it. `ncu` occupancy +
+register-per-thread metrics NOT RUN (counters blocked, §10) — the mechanism is
+inferred from the controlled experiment (only mapping/coarsening changed), not
+assumed.
+
+## 8. Benchmark methodology and its limitations
+
+`src/bench.cu`: `cudaEvent` around the kernel only (H2D/D2H outside the timed
+region — copies are PCIe bandwidth, not kernel performance); ≥10 warmup, ≥100
+timed iterations (10 if a single run exceeds 100 ms, flagged in JSON and
+stdout); median/min/p95/mean over identical inputs across versions; derived
+metrics defined in code — `GFLOPS = 2·M·N·K / t`, `GB/s = (MK+KN+MN)·4 / t`
+(ideal traffic, no reuse — an upper-bound model, not a claim); estimated FP32
+peak from device properties (`SMs × 128 cores × 2 FMA × clock`, labeled an
+estimate — cores/SM must be re-verified per architecture whitepaper); raw
+per-iteration arrays + metadata (git commit, device, CC, flags pointer, sizes,
+seed) in `results/bench_*.json`; protocol requires every bench run twice with
+>5% median-drift investigation. cuBLAS baseline (`time_cublas`) uses the
+standard dual-transpose emulation (`C^T = B^T·A^T`) — same math, column-major
+API. Limitations: display-attached WDDM GPU (scheduling noise — hence medians
+and repeats); no `nsys` (kernel time only, no end-to-end traces); `ncu`
+counters may be restricted under WDDM (then profiler evidence stays NOT RUN); shapes stop at 1024.
+
+## 9. Measured performance comparisons
+
+Bench matrix: 256/512/1024 square + 1024×1024×512 + 512×1024×1024,
+`kern_bench --all --seed 0`, runs D and E (6-kernel binary) with scripted drift
+check (`scripts/check_repeat.py`, 29/30 cells ≤5%) plus adjudicating run C for
+1024³. Reported run: E (`results/bench_*.json`); table via
+`scripts/generate_tables.py --write` into `README.md`; audit
+(`scripts/claims_audit.py`) passes with 180 traced values. Medians (ms):
+
+| Shape | v0 | v1 | v2 | v3 | v4 | cuBLAS |
+|---|---|---|---|---|---|---|
+| 256³ | 0.0728 | 0.0368 | 0.0279 | 0.0293 | **0.0180** | 0.0200 |
+| 512³ | 0.3369 | 0.2583 | 0.1791 | 0.1774 | **0.0815** | 0.0392 |
+| 1024³ | 2.4838 | 2.2586 | 1.1672 | 1.2242 | **0.6212** | 0.2259 |
+| 1024×1024×512 | 1.2480 | 1.1280 | 0.6012 | 0.5912 | **0.2796** | 0.1128 |
+| 512×1024×1024 | 1.2771 | 1.1253 | 0.6288 | 0.6177 | **0.2762** | 0.1165 |
+
+GFLOPS (1024³): v0 865 → v1 951 → v2 1840 → v3 1754 → **v4 3457** → cuBLAS 9508
+(72% of the 13.13 TFLOPS estimated peak: 36 SMs × 128 cores × 2 FMA ×
+1.425 GHz — an estimate, re-verify cores/SM against the whitepaper before
+citing elsewhere). Findings: v0→v1 helps most at small shapes (2.0× at 256³,
+1.1× at 1024³ — mapping overhead vs memory); v1→v2 ≈ 1.5–1.9× (reuse);
+v2→v3 within ±5% everywhere (negative result, §11); v2→v4 ≈ 1.9–2.2×
+(occupancy); cuBLAS leads v4 2.4–2.7× at large shapes but only 1.1× at 256³
+(launch-overhead regime — the ladder is competitive where the GPU is idle).
+Repeatability: worst drift 5.42% (one marginal cell, §10); v3-beats-v2 never
+observed in any of 3 runs at 1024³.
+
+## 10. Profiler evidence (NOT RUN — blocked, with evidence)
+
+`ncu --section SpeedOfLight` attempted 2026-10-09 (2025.3.1.0, single 256³
+shape): `ERR_NVGPUCTRPERM` — no permission to access GPU performance counters
+on this WDDM device. Enabling counters needs admin/developer-mode action (out
+of scope). Attempt log:
+`results/ncu/ncu_smoke_M256_attempt.log`. Full per-version metric plan
+(DRAM transactions, coalescing efficiency, bank conflicts, occupancy) is kept
+in `scripts/run_ncu.sh` for a machine with counter access. Repeatability notes
+from timing distributions (substitute evidence, labeled as such): 1024³ v2
+medians A/B/C = 1.1175/1.2236/1.1352 with mins 1.0956/1.1294/1.0981 — the 9.5%
+A-vs-B drift sits inside overlapping min–p95 bands (WDDM display-GPU noise from
+compositor/background apps sharing the GPU); run B kept as reported run, all
+three values disclosed here. The single D-vs-E marginal cell (K512 v4, 5.42%,
+mins identical at 0.2601/0.2613) got the same treatment.
+
+## 11. Failed experiments and negative results
+
+Kept in `docs/NEGATIVE_RESULTS.md` (design rejections: 64×64 thread blocks,
+GPU-side double accumulation, timing copies) plus the v3 barrier fix, the v3
+vectorization non-result (within ±5% of v2 on all 5 shapes across runs D/E —
+cooperative-load/branch overhead at the 1024-thread occupancy wall; v4 shows
+the wall was the real problem), and the ptxas `__launch_bounds__` rejection in
+`LOG.md`. Policy: a hypothesis that measures within noise is recorded with
+numbers and kept reproducible — never deleted, never re-timed until attractive.
+
+## 12. Hardware-specific conclusions
+
+Single data point (RTX 5070, Blackwell sm_120, WDDM display-attached, driver
+617.14, CUDA 13.0): the ladder ranks v0 < v1 < v2 ≈ v3 < v4 < cuBLAS on every
+shape ≥512, with v4 at 26% and cuBLAS at 72% of estimated FP32 peak at 1024³.
+At 256³ all backends converge (launch overhead dominates — even v4 barely beats
+cuBLAS 1.1×). No conclusion is generalized to other architectures without
+re-running; the `-DKERN_CUDA_ARCH` flag and `tools/detect_arch.py` exist for that.
+
+## 13. Lessons relevant to ML inference and training
+
+- Every transformer projection (`Q/K/V/O`, FFN up/down) and attention score
+  (`Q·K^T`) is a GEMM; batch × sequence dimensions map to the M axis, model
+  width to N/K. The ladder's reuse analysis (§4–5) is the same analysis that
+  decides whether an inference projection is memory- or compute-bound.
+- `torch.compile`/vendor kernels win the same way cuBLAS does: fusion, layout,
+  and per-shape tuning — operator-level GFLOPS only matters via its effect on
+  end-to-end latency, which is why this repo times kernels but documents the
+  missing end-to-end trace as a limitation (§8).
+- Bring-up lesson (transferable to any accelerator): silent hang → check barrier/uniformity contracts before blaming the
+  toolchain; keep the wrong theory (SAC block) corrected in writing.
+- Planned `ml/` extension (not started): benchmark representative projection
+  shapes with PyTorch (eager vs compiled, latency/throughput/memory/numerics)
+  and use this ladder to explain the bottleneck. Only after core bench lands.
+  Status 2026-10-09: core bench HAS landed, but `torch` is not installed here
+  (verified `ModuleNotFoundError`) and the MSYS2 Python has no pip, so a
+  measured eager-vs-compiled experiment is deferred — exact next step:
+  install a CUDA torch build, run `ml/transformer_gemm.py` (to be written:
+  QKV/FFN-shaped GEMMs, eager vs `torch.compile`, latency + numerics vs this
+  ladder), commit its JSON next to `results/`.
+- Down payment with zero new dependencies (`scripts/roofline.py`, self-check
+  passes): a 4096-wide FFN up-projection at 512 tokens (M=512,N=4096,K=4096)
+  needs 17.18 GFLOP at AI=204.8 FLOP/B — the same compute-leaning regime as the
+  measured shapes (AI 128–171), where the v4 occupancy win applies; nearest
+  measured point (512×1024×1024, v4 3888 GFLOPS) implies ≥19.0 GB/s ideal
+  traffic. An attention QKV case (M=2048,N=4096,K=1024, AI=292.6) sits even
+  further toward compute-bound. These are analytical placements against
+  measured references (extrapolation, labeled as such) — they motivate which
+  transformer shapes to benchmark first when torch is available.

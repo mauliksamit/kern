@@ -1,0 +1,24 @@
+name: ci
+on: [push, pull_request]
+jobs:
+  cpu-checks:
+    # GitHub Actions cannot run GPU code (no GPU runners). CI runs formatting,
+    # Python tests, and CPU-side checks only. Stated in README.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: CPU reference tests
+        run: python3 tests/test_correctness_cpu.py
+      - name: Claims audit (README numbers trace to results/)
+        run: python3 scripts/claims_audit.py
+      - name: Results table freshness
+        run: python3 scripts/generate_tables.py --check
+      - name: Configure (CPU-only, no CUDA expected)
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+      - name: Build CPU targets
+        run: cmake --build build -j
+      - name: CTest (CPU tests only)
+        run: ctest --test-dir build --output-on-failure
