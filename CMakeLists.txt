@@ -48,12 +48,22 @@ if(KERN_HAVE_CUDA)
   # Convert sm_120 -> 120 for CMAKE_CUDA_ARCHITECTURES.
   string(REGEX MATCH "[0-9]+" KERN_CUDA_ARCH_NUM "${KERN_CUDA_ARCH}")
   set(CMAKE_CUDA_ARCHITECTURES ${KERN_CUDA_ARCH_NUM})
-  set(CMAKE_CUDA_FLAGS_RELEASE "-O3 -lineinfo --use_fast_math -Xcompiler=/O2")
+  set(CMAKE_CUDA_FLAGS_RELEASE "-O3 -lineinfo -Xcompiler=/O2")
+  # Fast math is OPT-IN and documented (default OFF): --use_fast_math enables
+  # approximate division/sqrt, flush-to-zero, and FMA contraction. All
+  # committed measurements use the default OFF unless the JSON compile_flags
+  # say otherwise. Toggle with -DKERN_FAST_MATH=ON.
+  option(KERN_FAST_MATH "Enable nvcc --use_fast_math (approximate FP ops)" OFF)
+  set(KERN_CUDA_EXTRA_FLAGS "")
+  if(KERN_FAST_MATH)
+    set(KERN_CUDA_EXTRA_FLAGS " --use_fast_math")
+  endif()
+  set(CMAKE_CUDA_FLAGS_RELEASE "${CMAKE_CUDA_FLAGS_RELEASE}${KERN_CUDA_EXTRA_FLAGS}")
   message(STATUS "[kern] CUDA arch: ${KERN_CUDA_ARCH} (CMAKE_CUDA_ARCHITECTURES=${CMAKE_CUDA_ARCHITECTURES})")
   # Bake the exact release flags into bench JSON (Phase 0 evidence rule: record
   # what actually built the binary; never guess). Stringified in bench.cu.
   add_compile_definitions(
-    "KERN_COMPILE_FLAGS=-O3 -lineinfo --use_fast_math -Xcompiler=/O2 -arch=${KERN_CUDA_ARCH}")
+    "KERN_COMPILE_FLAGS=-O3 -lineinfo${KERN_CUDA_EXTRA_FLAGS} -Xcompiler=/O2 -arch=${KERN_CUDA_ARCH}")
 endif()
 
 # ---- CPU reference library (always built) ----------------------------------

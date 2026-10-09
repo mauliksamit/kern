@@ -38,6 +38,8 @@ ctest --test-dir build --output-on-failure
 
 (`sm_120` matches the RTX 5070 inference; override per GPU, e.g. `sm_80` for A100.
 Needs CUDA 12.8 or newer for 50-series (verified here with CUDA 13.0 + MSVC 19.44).
+Fast math is off by default; all committed numbers use strict IEEE FP unless a
+bench JSON's `compile_flags` says otherwise (`-DKERN_FAST_MATH=ON` to opt in).
 CPU-only build works with no toolkit.
 On Windows with VS 2022 Build Tools, configure inside a developer prompt
 (`VsDevCmd -arch=amd64`) with `-G "NMake Makefiles"` and an explicit
