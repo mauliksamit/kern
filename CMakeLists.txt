@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.24)
 
 # ---------------------------------------------------------------------------
-# kern: SGEMM optimization ladder (v0 naive -> v3 tiled+vectorized) + cuBLAS baseline.
+# kern: SGEMM optimization ladder (v0 naive -> v5 register-tiled) + cuBLAS baseline.
 # One command to build, one to test:
 #   cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 #   cmake --build build -j
@@ -69,6 +69,7 @@ if(KERN_HAVE_CUDA)
     kernels/v2_tiled.cu
     kernels/v3_tiled_vectorized.cu
     kernels/v4_coarsened.cu
+    kernels/v5_regtile.cu
   )
   target_include_directories(kern_kernels PUBLIC include)
   set_target_properties(kern_kernels PROPERTIES CUDA_SEPARABLE_COMPILATION OFF)

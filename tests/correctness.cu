@@ -140,6 +140,14 @@ main(int argc, char** argv) {
       {128, 256, 512, "rect-large-K"},
       {512, 512, 512, "large"},
       {1023, 513, 257, "large-odd"},
+      // v5 tile-stress shapes (BM=BN=128, BK=8): non-multiples of 128/8,
+      // tiny/prime K, K=1 edge, just-over-128 edges (bounds + zero-pad paths).
+      {5, 3, 7, "k-537"},
+      {9, 9, 9, "k-9"},
+      {16, 16, 1, "k-one"},
+      {65, 129, 9, "nonmult-128"},
+      {130, 130, 130, "just-over-128"},
+      {33, 17, 129, "k-129"},
   };
   // Magnitude coverage: second pass reuses a subset with extreme values.
   const Shape mag_shapes[] = {{32, 32, 64, "large-val"}, {32, 32, 64, "small-val"}};
@@ -152,7 +160,8 @@ main(int argc, char** argv) {
                  {"v1_coalesced", kern::launch_v1_coalesced},
                  {"v2_tiled", kern::launch_v2_tiled},
                  {"v3_tiled_vectorized", kern::launch_v3_tiled_vectorized},
-                 {"v4_coarsened", kern::launch_v4_coarsened}};
+                 {"v4_coarsened", kern::launch_v4_coarsened},
+                 {"v5_regtile", kern::launch_v5_regtile}};
 
   int total_bad = 0;
 #ifdef KERN_HAS_CUBLAS

@@ -224,3 +224,22 @@
   Device note: ncu reports GB206 (earlier GB205 inference wrong; sm_120
   flag unaffected — builds and runs).
 - Next: Phase 2 v5_regtile (BM=BN=128, BK=8, 8x8 micro-tile, 256 threads).
+
+## 2026-10-09 — Phase 2 v5_regtile: 1.5x over v4 at 1024^3, loses small (crossover)
+- Bottleneck (evidence): v4's 32^2 tile does 16 MAC per shared float; the
+  occupancy win had plateaued (v4 ~3.4 TFLOPS vs cuBLAS ~9.8).
+- Change (single): `kernels/v5_regtile.cu` — BM=BN=128, BK=8, 256 threads,
+  8x8 register micro-tile (64 C + 8 A + 8 B fragments), scalar shared, no
+  swizzle; block-uniform barriers; size_t math; 6 new tile-stress shapes
+  (K=1/7/9/129, non-multiples of 128, just-over-128). Idea attribution:
+  REFERENCES #8 + code comment (no code copied).
+- Metric: correctness ALL PASS (bad=0, 126 checks incl. new shapes);
+  sanitizer 4/4 clean; bench J/K (33/35 cells <=5%; two marginals
+  adjudicated: 1024^3 v0 8.3% with identical mins, v5 5.9% with K confirmed
+  by independent first-look 0.4308). Reported run K 1024^3: v5 0.4298ms /
+  4997 GFLOPS (38% est. peak) vs v4 0.6357 (1.48x) vs cuBLAS 0.2190 (2.0x
+  lead, 75% peak). Crossover: v5 loses 512^3 (0.87x) and 256^3 (0.33x —
+  4 blocks starve the GPU). Claim audit extended to WRITEUP percentages/
+  speedups (share + drift forms, analytical-model exemption); passes (215).
+- Profiler: ncu still blocked — timing + labeled analysis only, NOT RUN.
+- Next: v6_vec_transposed (float4 + transposed A tile) to test layout isolation.

@@ -30,3 +30,10 @@ No code was copied from these references; all kernels were written from scratch.
    Used in: `kernels/v3_tiled_vectorized.cu` (2026-10-09 fix: fast-path decision
    hoisted from per-thread row/col alignment to block-uniform tile-base
    alignment after a divergent-barrier hang; see `LOG.md`).
+8. Register-tiling progression for CUDA SGEMM (block tiles → warp tiles →
+   per-thread fragments, swizzled shared layouts) as popularized by public
+   SGEMM-optimization write-ups, e.g. S. Boehm, "How to Optimize a CUDA Matmul
+   Kernel for cuBLAS-like Performance".
+   https://siboehm.com/articles/22/CUDA-MMM
+   Used in: `kernels/v5_regtile.cu` (BM/BN/BK blocking + TM/TN register
+   fragments; pattern attribution, implementation original).

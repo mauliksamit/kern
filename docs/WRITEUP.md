@@ -1,7 +1,7 @@
 # Writeup — SGEMM optimization ladder
 
 Status 2026-10-09: **measured on RTX 5070 (sm_120, CUDA 13.0, driver 617.14).**
-Correctness ALL PASS (72 checks: 12 shapes × (5 kernels + cuBLAS)), sanitizer clean (4 tools), bench run twice
+Correctness ALL PASS (126 checks: 18 shapes × (6 kernels + cuBLAS)), sanitizer clean (4 tools), bench run twice
 (runs D/E) with scripted drift check plus an adjudicating run C for the one
 drifting cell. Profiler counters blocked (`ERR_NVGPUCTRPERM`, attempt log in
 `results/ncu/`) — performance claims rest on `cudaEvent` timing plus labeled
@@ -29,10 +29,11 @@ Justification: float dot-product error grows ~`K·eps` (`eps ≈ 1.2e-7`); for
 covers large magnitudes, the absolute floor covers small ones — each with a
 dedicated shape (1e9–1e10 and 1e-11–1e-10 ranges).
 
-Gate (`tests/correctness.cu`, seed 1234): 12 shapes × (5 kernels + cuBLAS) =
-72 checks — size-1, row/col vectors, small primes (7×13×5), non-multiples
+Gate (`tests/correctness.cu`, seed 1234): 18 shapes × (6 kernels + cuBLAS) =
+126 checks — size-1, row/col vectors, small primes (7×13×5), non-multiples
 (31×33×17, 100×97×63), tile-aligned 64³, rect-large-K, 512³, large-odd
-1023×513×257, plus both magnitude extremes. Result
+1023×513×257, v5 tile-stress shapes (non-multiples of 128/8, K = 1/7/9/129,
+just-over-128 edges), plus both magnitude extremes. Result
 (`results/correctness_seed1234.json`, `bad=0`):
 
 | Shape class | Worst abs err (all 5 kernels agree) |
@@ -59,7 +60,7 @@ All kernels map the M×N output domain onto a CUDA grid; v0–v3 give each threa
 element, while v4 (§7) coarsens to a 2×2 micro-tile per thread. `v0` uses 2D 16×16 blocks over a 2D grid
 (`kernels/v0_naive.cu`); `v1` flattens to a 1D grid of 256-thread blocks with
 `row = tid / N, col = tid % N`; `v2`/`v3` use 2D 32×32 blocks = 1024 threads
-(the architectural maximum — portable but occupancy-limited, §8). Every launch
+(the architectural maximum — portable but occupancy-limited, §9). Every launch
 is followed by `CUDA_CHECK_LAST_ERROR()` (`include/kern/cuda_check.h`), and
 `CUDA_SYNC_DEBUG()` synchronizes in non-`NDEBUG` builds. All versions
 bounds-check, so arbitrary M/N/K are correct (edge tiles zero-fill in
@@ -79,8 +80,8 @@ times, each `A` element N times).
 `v1` (`v1_coalesced.cu`) changes only the mapping: flattened 1D grid,
 `__restrict__`, stores to contiguous `C[tid]`. A-row reads stay per-thread
 private; the win, if any, comes from fully coalesced C stores and friendlier
-compiler vectorization of the A stream. Measured: 2.04× at 256³ (0.0728→0.0368 ms), shrinking to 1.08× at 1024³
-(2.4838→2.2586 ms) — mapping overhead matters most where kernels are short.
+compiler vectorization of the A stream. Measured: 2.0× at 256³ (0.0696→0.0350 ms), shrinking to 1.09× at 1024³
+(2.4937→2.2847 ms) — mapping overhead matters most where kernels are short.
 The hypothesis held; magnitude varies by shape (`results/bench_*.json`).
 
 ## 5. Shared-memory tiling (v2)
@@ -92,7 +93,7 @@ Global traffic per output tile drops from `2·32·32·32` reads to
 (broadcast/column reads) instead of strided DRAM. Bank conflicts: `As[ty][k]`
 is a same-address broadcast per warp row (no conflict); `Bs[k][tx]` touches 32
 distinct banks (no conflict) — expect ≈ 0; `ncu` bank-conflict counters NOT RUN
-(blocked, §11; re-test in Phase 1 now that counters are enabled).
+(blocked, §12; re-tested after counters were enabled, still blocked).
 Two `__syncthreads()` per K-tile (after fill, after compute) are required and
 uniform. Non-multiples handled by predicated zero-fill loads + guarded store.
 
@@ -128,22 +129,45 @@ cooperative (256 threads × 4 elements). Result at 1024³ (reported run G): **0.
 rect shapes ≈ 2.2× (2.22× / 2.15×). The occupancy/work-per-thread hypothesis is confirmed by
 measurement: the 1024-thread blocks were the binding constraint, not load width
 (§6). v4 reaches 25% of the estimated 13.13 TFLOPS FP32 peak; cuBLAS still leads
-2.7× (8910 GFLOPS) — the remaining gap is the vendor library's territory
+2.9× (9804 GFLOPS) — the remaining gap is the vendor library's territory
 (tensor cores, swizzling, per-shape tuning), stated as future work, not failure.
 
-## 8. Register usage and occupancy (analysis; timing evidence measured, counters NOT RUN)
+## 8. Register blocking (v5 — MEASURED, confirmed at large shapes)
+
+`v5` (`kernels/v5_regtile.cu`): BM=BN=128, BK=8 block tiles on 256 threads,
+each accumulating an 8x8 register micro-tile (64 C fragments + 8 A + 8 B
+fragments). Fill efficiency 64 MAC/float vs v4's 16 (4x). Scalar shared
+loads, no swizzle: any bank-conflict cost stays in this measurement so v6
+(layout change) can isolate it.
+
+Result (reported run K) at 1024^3: 0.4298ms vs v4 0.6357 (1.5x; 4997 vs 3378
+GFLOPS); K512: 1.32x (0.2021 vs 0.2673); rect: 1.50x (0.1874 vs 0.2810). v5
+reaches 38% of the estimated peak; cuBLAS leads 2.0x (9804 GFLOPS, 75%).
+
+Crossover, stated plainly: v5 LOSES on small problems — 512^3: 0.0941 vs
+0.0817 (0.87x); 256^3: 0.0554 vs 0.0181 (0.33x). A 128-wide tile on a
+256-wide problem launches 4 blocks (1024 threads): the big tile starves
+parallelism where v4's 32-wide tiles fill the machine. Tile size is a bet on
+problem size; the ladder now shows both sides of it.
+
+What surprised us: the As column pattern aliases rows 8 apart onto identical
+bank sets (8 floats/row = one 32-bank period divisor), yet the 1.5x win came
+anyway — layout is second-order at this intensity. v6 tests whether fixing
+the layout still pays on top.
+
+## 9. Register usage and occupancy (analysis; timing evidence measured, counters NOT RUN)
 
 `v2`/`v3` run 1024 threads/block with 8 KB shared per block. Most SMs cannot
 co-reside two such blocks (thread-count and shared-memory limits), so occupancy
 is structurally capped — one resident block per SM means latency hiding rests
 entirely on the 1024 threads' own parallelism, and register pressure per thread
 directly trades against nothing (no second block to make room for). v4 tested
-exactly this (§7) and the 1.9–2.2× win confirms it. `ncu` occupancy +
-register-per-thread metrics NOT RUN (counters blocked, §11) — the mechanism is
+exactly this (§7) and the 1.5–2.2× win confirms it. `ncu` occupancy +
+register-per-thread metrics NOT RUN (counters blocked, §12) — the mechanism is
 inferred from the controlled experiment (only mapping/coarsening changed), not
 assumed.
 
-## 9. Benchmark methodology and its limitations
+## 10. Benchmark methodology and its limitations
 
 `src/bench.cu`: `cudaEvent` around the kernel only (H2D/D2H outside the timed
 region — copies are PCIe bandwidth, not kernel performance); ≥10 warmup, ≥100
@@ -161,37 +185,41 @@ API. Limitations: display-attached WDDM GPU (scheduling noise — hence medians
 and repeats); no `nsys` (kernel time only, no end-to-end traces); `ncu`
 counters may be restricted under WDDM (then profiler evidence stays NOT RUN); shapes stop at 1024.
 
-## 10. Measured performance comparisons
+## 11. Measured performance comparisons
 
 Bench matrix: 256/512/1024 square + 1024×1024×512 + 512×1024×1024,
 `kern_bench --all --seed 0`. History: runs D/E (+run C) established the baseline;
-the current session ran F/G/H/I under heavier display-GPU contention (see §11).
+the current session ran F/G/H/I under heavier display-GPU contention (see §12).
 Reported run: G (`results/bench_*.json`); table via
 `scripts/generate_tables.py --write` into `README.md`; audit
 (`scripts/claims_audit.py`) passes. Medians (ms):
 
-| Shape | v0 | v1 | v2 | v3 | v4 | cuBLAS |
-|---|---|---|---|---|---|---|
-| 256³ | 0.0723 | 0.0358 | 0.0275 | 0.0283 | **0.0188** | 0.0201 |
-| 512³ | 0.3387 | 0.2582 | 0.1838 | 0.1760 | **0.0817** | 0.0403 |
-| 1024³ | 2.4845 | 2.2594 | 1.1263 | 1.2700 | **0.6481** | 0.2410 |
-| 1024×1024×512 | 1.6236 | 1.1316 | 0.5923 | 0.5938 | **0.2669** | 0.1157 |
-| 512×1024×1024 | 1.2745 | 1.1399 | 0.6039 | 0.6098 | **0.2813** | 0.1126 |
+| Shape | v0 | v1 | v2 | v3 | v4 | v5 | cuBLAS |
+|---|---|---|---|---|---|---|---|
+| 256³ | 0.0696 | 0.0350 | 0.0282 | 0.0285 | 0.0181 | 0.0554 | 0.0203 |
+| 512³ | 0.3375 | 0.2582 | 0.1782 | 0.1770 | 0.0818 | 0.0941 | 0.0389 |
+| 1024³ | 2.4937 | 2.2847 | 1.1306 | 1.3086 | 0.6357 | 0.4298 | 0.2190 |
+| 1024×1024×512 | 1.6059 | 1.1434 | 0.5964 | 0.5954 | 0.2673 | 0.2021 | 0.1120 |
+| 512×1024×1024 | 1.2746 | 1.1522 | 0.6127 | 0.6133 | 0.2810 | 0.1874 | 0.1100 |
 
-GFLOPS (1024³): v0 864 → v1 950 → v2 1907 → v3 1691 → **v4 3314** → cuBLAS 8910
-(68% of the 13.13 TFLOPS estimated peak: 36 SMs × 128 cores × 2 FMA ×
+GFLOPS (1024³): v0 861 → v1 940 → v2 1900 → v3 1641 → v4 3378 →
+**v5 4997** → cuBLAS 9804
+(75% of the 13.13 TFLOPS estimated peak: 36 SMs × 128 cores × 2 FMA ×
 1.425 GHz reported clock — an estimate, re-verify cores/SM against the whitepaper
 before citing elsewhere; observed boost reached 2377 MHz, so the estimate is
-likely understated, see §11). Findings: v0→v1 helps most at small shapes (2.0× at 256³,
-1.10× at 1024³ — mapping overhead vs memory); v1→v2 ≈ 1.3–2.0× (reuse);
-v2→v3 never a gain in any run (v3 slower on 4/5 shapes here: 1.2700 vs 1.1263 ms
-at 1024³; negative result, §12); v2→v4 ≈ 1.5–2.2×
-(occupancy); cuBLAS leads v4 2.0–2.7× at large shapes but only 1.1× at 256³
-(launch-overhead regime — the ladder is competitive where the GPU is idle).
-Repeatability: this session ran F/G/H/I (see §11); prior D/E/C values retained
-in LOG.md. v3 beats v2 only at 512³ by ≤4% (all sessions — within noise).
+likely understated, see §12). Findings: v0→v1 helps most at small shapes (2.0× at 256³,
+1.09× at 1024³ — mapping overhead vs memory); v1→v2 ≈ 1.2–2.0× (reuse);
+v2→v3 never a gain in any run (v3 slower on 4/5 shapes here: 1.3086 vs 1.1306 ms
+at 1024³; negative result, §13); v2→v4 ≈ 1.5–2.2×
+(occupancy); v4→v5 ≈ 1.3–1.5× at 1024²-scale and above, negative below 512³
+(tile-size crossover, §8); cuBLAS leads v5 1.7–2.4× at large shapes; at 256³
+v4 still beats cuBLAS 1.1× while tile-starved v5 trails
+(launch/parallelism regime — the ranking itself is size-dependent).
+Repeatability: runs F/G/H/I/J/K adjudicated per cell (see §12); prior D/E/C
+values retained in LOG.md. v3 beats v2 only at 512³ by ≤1% (all sessions —
+within noise).
 
-## 11. Profiler evidence (NOT RUN — blocked, with evidence)
+## 12. Profiler evidence (NOT RUN — blocked, with evidence)
 
 `ncu --section SpeedOfLight` attempted 2026-10-09 (2025.3.1.0, single 256³
 shape): `ERR_NVGPUCTRPERM` — no permission to access GPU performance counters
@@ -227,7 +255,7 @@ Process note: run E's JSONs were overwritten by run F before being copied
 aside — E values survive only in prose (prior LOG/WRITEUP); all later runs
 are copied aside before the next run starts.
 
-## 12. Failed experiments and negative results
+## 13. Failed experiments and negative results
 
 Kept in `docs/NEGATIVE_RESULTS.md` (design rejections: 64×64 thread blocks,
 GPU-side double accumulation, timing copies) plus the v3 barrier fix, the v3
@@ -237,16 +265,16 @@ the wall was the real problem), and the ptxas `__launch_bounds__` rejection in
 `LOG.md`. Policy: a hypothesis that measures within noise is recorded with
 numbers and kept reproducible — never deleted, never re-timed until attractive.
 
-## 13. Hardware-specific conclusions
+## 14. Hardware-specific conclusions
 
 Single data point (RTX 5070 Laptop, Blackwell sm_120, WDDM display-attached, driver
-617.14, CUDA 13.0): the ladder ranks v0 < v1 < v2 ≈ v3 < v4 < cuBLAS on every
-shape ≥512, with v4 at 25% and cuBLAS at 68% of estimated FP32 peak at 1024³.
-At 256³ all backends converge (launch overhead dominates — even v4 barely beats
-cuBLAS 1.1×). No conclusion is generalized to other architectures without
+617.14, CUDA 13.0): the ladder ranks v0 < v1 < v2 ≈ v3 < v4 < v5 < cuBLAS
+at 1024²-scale and above, with v5 at 38% and cuBLAS at 75% of estimated FP32
+peak at 1024³. At 256³ the ranking inverts for the big tile (v5 trails v4
+3×) while v4 still beats cuBLAS 1.1× — tile size is a bet on problem size. No conclusion is generalized to other architectures without
 re-running; the `-DKERN_CUDA_ARCH` flag and `tools/detect_arch.py` exist for that.
 
-## 14. Lessons relevant to ML inference and training
+## 15. Lessons relevant to ML inference and training
 
 - Every transformer projection (`Q/K/V/O`, FFN up/down) and attention score
   (`Q·K^T`) is a GEMM; batch × sequence dimensions map to the M axis, model
@@ -255,7 +283,7 @@ re-running; the `-DKERN_CUDA_ARCH` flag and `tools/detect_arch.py` exist for tha
 - `torch.compile`/vendor kernels win the same way cuBLAS does: fusion, layout,
   and per-shape tuning — operator-level GFLOPS only matters via its effect on
   end-to-end latency, which is why this repo times kernels but documents the
-  missing end-to-end trace as a limitation (§9).
+  missing end-to-end trace as a limitation (§10).
 - Bring-up lesson (transferable to any accelerator): silent hang → check barrier/uniformity contracts before blaming the
   toolchain; keep the wrong theory (SAC block) corrected in writing.
 - Planned `ml/` extension (not started): benchmark representative projection
@@ -271,7 +299,7 @@ re-running; the `-DKERN_CUDA_ARCH` flag and `tools/detect_arch.py` exist for tha
   passes): a 4096-wide FFN up-projection at 512 tokens (M=512,N=4096,K=4096)
   needs 17.18 GFLOP at AI=204.8 FLOP/B — the same compute-leaning regime as the
   measured shapes (AI 128–171), where the v4 occupancy win applies; nearest
-  measured point (512×1024×1024, v4 3817 GFLOPS) implies ≥18.6 GB/s ideal
+  measured point (512×1024×1024, v5 5731 GFLOPS) implies ≥28.0 GB/s ideal
   traffic. An attention QKV case (M=2048,N=4096,K=1024, AI=292.6) sits even
   further toward compute-bound. These are analytical placements against
   measured references (extrapolation, labeled as such) — they motivate which

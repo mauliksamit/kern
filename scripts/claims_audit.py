@@ -1,17 +1,23 @@
 #!/usr/bin/env python3
 """Claims audit.
 
-Checks that every numeric performance claim in README.md traces to a file in
+Checks that every numeric performance claim in README.md and docs/WRITEUP.md
+traces to a file in
 results/. Strategy (documented, approximate but honest):
-  1. Extract all floating numbers from README.md outside the results-table block
-     that look like measurements (ms / GFLOPS / GB/s / % with nearby keyword).
+  1. Extract all floating numbers from both files outside the results-table
+     block that look like measurements (ms / GFLOPS / GB/s / % with nearby
+     keyword). Protocol constants (the 100 ms
+     single-run iteration rule, the 5% drift rule) are exempt by keyword.
   2. Require each to either (a) appear in some results/*.json within tolerance,
      or (b) be explicitly marked NOT RUN / estimated / TODO.
   3. Also verify the results table block matches scripts/generate_tables.py output.
 
-Percentages must derive as 100*a/b from two traced values (1pp tolerance).
+Percentages must derive from two traced values within 1 percentage point,
+either as a share (100*a/b) or as a relative change/drift (100*|a-b|/max(a,b)).
 The 5% repeatability threshold ("drift") is a protocol constant,
-not a measurement, and is exempt by keyword.
+not a measurement, and is exempt by keyword. Numbers inside a clearly labeled
+analytical model (ideal/implied/analytical/extrapolation context) are exempt:
+they are derived quantities, not measurements.
 Exit 0 = audit passes. Exit 1 = untraced number found.
 """
 import glob
@@ -22,6 +28,7 @@ import sys
 
 ROOT = os.path.join(os.path.dirname(__file__), "..")
 README = os.path.join(ROOT, "README.md")
+WRITEUP = os.path.join(ROOT, "docs", "WRITEUP.md")
 RESULTS_GLOB = os.path.join(ROOT, "results", "*.json")
 BEGIN = "<!-- RESULTS-BEGIN -->"
 END = "<!-- RESULTS-END -->"
@@ -45,30 +52,22 @@ def load_numbers():
     return nums
 
 
-def main():
-    with open(README) as f:
-        text = f.read()
-    # Remove the generated table block: those numbers are traced by construction.
-    if BEGIN in text and END in text:
-        pre, _, rest = text.partition(BEGIN)
-        _, _, post = rest.partition(END)
-        body = pre + post
-    else:
-        body = text
+def check_text(text, label, traced, failures):
     # Find candidate measurement claims: number + unit keyword nearby.
     pattern = re.compile(r"(\d+\.\d+|\d+)\s*(ms|GFLOPS|GB/s|TFLOPS|%|e\.g\.)", re.IGNORECASE)
-    traced = load_numbers()
-    failures = []
-    for m in pattern.finditer(body):
+    for m in pattern.finditer(text):
         val = float(m.group(1))
         unit = m.group(2)
         # Skip obvious non-claims: years, versions, tile sizes, counts.
         start = max(0, m.start() - 60)
-        ctx = body[start:m.end() + 40]
-        if re.search(r"NOT RUN|TODO|e\.g\.|for example|version|CUDA \d|sm_\d|TILE|drift",
+        ctx = text[start:m.end() + 40]
+        if re.search(r"NOT RUN|TODO|e\.g\.|for example|version|CUDA \d|sm_\d|TILE|drift|exceeds",
                       ctx, re.I):
             continue
-        if "NOT RUN" in body[max(0, m.start() - 200):m.end()]:
+        # Derived quantities inside a labeled analytical model are not measurements.
+        if re.search(r"ideal|implied|analytical|extrapolat|upper-bound|model", ctx, re.I):
+            continue
+        if "NOT RUN" in text[max(0, m.start() - 200):m.end()]:
             continue
         # Check traceability within 1% relative or small absolute tolerance.
         ok = any(abs(val - t) <= max(0.01 * abs(t), 1e-6) or
@@ -76,14 +75,37 @@ def main():
         if not ok and unit == "%":
             for a in traced:
                 for b in traced:
-                    if b and abs(val - 100.0 * a / b) <= 1.0:
+                    if not b:
+                        continue
+                    if abs(val - 100.0 * a / b) <= 1.0:
+                        ok = True
+                        break
+                    if abs(val - 100.0 * abs(a - b) / max(abs(a), abs(b))) <= 1.0:
                         ok = True
                         break
                 if ok:
                     break
         if not ok:
-            # Numbers with no results files at all are only OK if README declares NOT RUN.
-            failures.append((val, unit, ctx.strip().replace("\n", " ")[:120]))
+            # Numbers with no results files at all are only OK if declared NOT RUN.
+            failures.append((label, val, unit, ctx.strip().replace("\n", " ")[:120]))
+
+
+def main():
+    with open(README) as f:
+        readme_text = f.read()
+    with open(WRITEUP) as f:
+        wu_text = f.read()
+    # Remove the generated table block: those numbers are traced by construction.
+    if BEGIN in readme_text and END in readme_text:
+        pre, _, rest = readme_text.partition(BEGIN)
+        _, _, post = rest.partition(END)
+        readme_body = pre + post
+    else:
+        readme_body = readme_text
+    traced = load_numbers()
+    failures = []
+    check_text(readme_body, "README", traced, failures)
+    check_text(wu_text, "WRITEUP", traced, failures)
     # Table freshness: regenerate and compare.
     sys.path.insert(0, os.path.join(ROOT, "scripts"))
     try:
@@ -93,19 +115,19 @@ def main():
         gen = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(gen)
         table = gen.render(gen.load_rows())
-        if table.strip() not in text:
+        if table.strip() not in readme_text:
             print("AUDIT NOTE: results table block is stale "
                   "(run python scripts/generate_tables.py --write).")
             # Stale table is a failure only when results exist.
             if traced:
-                failures.append(("stale-table", "", "regenerate README table"))
+                failures.append(("README", "stale-table", "", "regenerate README table"))
     except Exception as e:
         print(f"AUDIT WARNING: could not verify table freshness: {e}")
 
     if failures:
-        print("CLAIMS AUDIT FAILED: untraced numbers in README (not in results/*.json):")
-        for val, unit, ctx in failures:
-            print(f"  {val} {unit}  ...{ctx}...")
+        print("CLAIMS AUDIT FAILED: untraced numbers in README/WRITEUP (not in results/*.json):")
+        for label, val, unit, ctx in failures:
+            print(f"  [{label}] {val} {unit}  ...{ctx}...")
         print("Fix: run the bench to produce results/*.json, regenerate the table, "
               "or mark the claim NOT RUN.")
         return 1

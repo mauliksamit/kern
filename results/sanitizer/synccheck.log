@@ -6,6 +6,7 @@ shape M=1 N=1 K=1 (size-1):
   v2_tiled           M=1     N=1     K=1     worst_abs_err=0 PASS
   v3_tiled_vectorized M=1     N=1     K=1     worst_abs_err=0 PASS
   v4_coarsened       M=1     N=1     K=1     worst_abs_err=0 PASS
+  v5_regtile         M=1     N=1     K=1     worst_abs_err=0 PASS
   cublas             M=1     N=1     K=1     worst_abs_err=0 PASS
 shape M=1 N=32 K=16 (row-vector):
   v0_naive           M=1     N=32    K=16    worst_abs_err=2.38e-07 PASS
@@ -13,6 +14,7 @@ shape M=1 N=32 K=16 (row-vector):
   v2_tiled           M=1     N=32    K=16    worst_abs_err=2.38e-07 PASS
   v3_tiled_vectorized M=1     N=32    K=16    worst_abs_err=2.38e-07 PASS
   v4_coarsened       M=1     N=32    K=16    worst_abs_err=2.38e-07 PASS
+  v5_regtile         M=1     N=32    K=16    worst_abs_err=2.38e-07 PASS
   cublas             M=1     N=32    K=16    worst_abs_err=2.38e-07 PASS
 shape M=32 N=1 K=16 (col-vector):
   v0_naive           M=32    N=1     K=16    worst_abs_err=4.77e-07 PASS
@@ -20,6 +22,7 @@ shape M=32 N=1 K=16 (col-vector):
   v2_tiled           M=32    N=1     K=16    worst_abs_err=4.77e-07 PASS
   v3_tiled_vectorized M=32    N=1     K=16    worst_abs_err=4.77e-07 PASS
   v4_coarsened       M=32    N=1     K=16    worst_abs_err=4.77e-07 PASS
+  v5_regtile         M=32    N=1     K=16    worst_abs_err=4.77e-07 PASS
   cublas             M=32    N=1     K=16    worst_abs_err=2.38e-07 PASS
 shape M=7 N=13 K=5 (small-prime):
   v0_naive           M=7     N=13    K=5     worst_abs_err=1.19e-07 PASS
@@ -27,6 +30,7 @@ shape M=7 N=13 K=5 (small-prime):
   v2_tiled           M=7     N=13    K=5     worst_abs_err=1.19e-07 PASS
   v3_tiled_vectorized M=7     N=13    K=5     worst_abs_err=1.19e-07 PASS
   v4_coarsened       M=7     N=13    K=5     worst_abs_err=1.19e-07 PASS
+  v5_regtile         M=7     N=13    K=5     worst_abs_err=1.19e-07 PASS
   cublas             M=7     N=13    K=5     worst_abs_err=1.19e-07 PASS
 shape M=31 N=33 K=17 (non-multiple):
   v0_naive           M=31    N=33    K=17    worst_abs_err=7.15e-07 PASS
@@ -34,6 +38,7 @@ shape M=31 N=33 K=17 (non-multiple):
   v2_tiled           M=31    N=33    K=17    worst_abs_err=7.15e-07 PASS
   v3_tiled_vectorized M=31    N=33    K=17    worst_abs_err=7.15e-07 PASS
   v4_coarsened       M=31    N=33    K=17    worst_abs_err=7.15e-07 PASS
+  v5_regtile         M=31    N=33    K=17    worst_abs_err=7.15e-07 PASS
   cublas             M=31    N=33    K=17    worst_abs_err=4.77e-07 PASS
 shape M=64 N=64 K=64 (tile-aligned):
   v0_naive           M=64    N=64    K=64    worst_abs_err=2.38e-06 PASS
@@ -41,6 +46,7 @@ shape M=64 N=64 K=64 (tile-aligned):
   v2_tiled           M=64    N=64    K=64    worst_abs_err=2.38e-06 PASS
   v3_tiled_vectorized M=64    N=64    K=64    worst_abs_err=2.38e-06 PASS
   v4_coarsened       M=64    N=64    K=64    worst_abs_err=2.38e-06 PASS
+  v5_regtile         M=64    N=64    K=64    worst_abs_err=2.38e-06 PASS
   cublas             M=64    N=64    K=64    worst_abs_err=1.91e-06 PASS
 shape M=100 N=97 K=63 (non-multiple-2):
   v0_naive           M=100   N=97    K=63    worst_abs_err=3.81e-06 PASS
@@ -48,6 +54,7 @@ shape M=100 N=97 K=63 (non-multiple-2):
   v2_tiled           M=100   N=97    K=63    worst_abs_err=3.81e-06 PASS
   v3_tiled_vectorized M=100   N=97    K=63    worst_abs_err=3.81e-06 PASS
   v4_coarsened       M=100   N=97    K=63    worst_abs_err=3.81e-06 PASS
+  v5_regtile         M=100   N=97    K=63    worst_abs_err=3.81e-06 PASS
   cublas             M=100   N=97    K=63    worst_abs_err=1.91e-06 PASS
 shape M=128 N=256 K=512 (rect-large-K):
   v0_naive           M=128   N=256   K=512   worst_abs_err=2.67e-05 PASS
@@ -55,6 +62,7 @@ shape M=128 N=256 K=512 (rect-large-K):
   v2_tiled           M=128   N=256   K=512   worst_abs_err=2.67e-05 PASS
   v3_tiled_vectorized M=128   N=256   K=512   worst_abs_err=2.67e-05 PASS
   v4_coarsened       M=128   N=256   K=512   worst_abs_err=2.67e-05 PASS
+  v5_regtile         M=128   N=256   K=512   worst_abs_err=2.67e-05 PASS
   cublas             M=128   N=256   K=512   worst_abs_err=6.68e-06 PASS
 shape M=512 N=512 K=512 (large):
   v0_naive           M=512   N=512   K=512   worst_abs_err=3.24e-05 PASS
@@ -62,6 +70,7 @@ shape M=512 N=512 K=512 (large):
   v2_tiled           M=512   N=512   K=512   worst_abs_err=3.24e-05 PASS
   v3_tiled_vectorized M=512   N=512   K=512   worst_abs_err=3.24e-05 PASS
   v4_coarsened       M=512   N=512   K=512   worst_abs_err=3.24e-05 PASS
+  v5_regtile         M=512   N=512   K=512   worst_abs_err=3.24e-05 PASS
   cublas             M=512   N=512   K=512   worst_abs_err=1.14e-05 PASS
 shape M=1023 N=513 K=257 (large-odd):
   v0_naive           M=1023  N=513   K=257   worst_abs_err=1.72e-05 PASS
@@ -69,20 +78,71 @@ shape M=1023 N=513 K=257 (large-odd):
   v2_tiled           M=1023  N=513   K=257   worst_abs_err=1.72e-05 PASS
   v3_tiled_vectorized M=1023  N=513   K=257   worst_abs_err=1.72e-05 PASS
   v4_coarsened       M=1023  N=513   K=257   worst_abs_err=1.72e-05 PASS
+  v5_regtile         M=1023  N=513   K=257   worst_abs_err=1.72e-05 PASS
   cublas             M=1023  N=513   K=257   worst_abs_err=6.91e-06 PASS
+shape M=5 N=3 K=7 (k-537):
+  v0_naive           M=5     N=3     K=7     worst_abs_err=1.19e-07 PASS
+  v1_coalesced       M=5     N=3     K=7     worst_abs_err=1.19e-07 PASS
+  v2_tiled           M=5     N=3     K=7     worst_abs_err=1.19e-07 PASS
+  v3_tiled_vectorized M=5     N=3     K=7     worst_abs_err=1.19e-07 PASS
+  v4_coarsened       M=5     N=3     K=7     worst_abs_err=1.19e-07 PASS
+  v5_regtile         M=5     N=3     K=7     worst_abs_err=1.19e-07 PASS
+  cublas             M=5     N=3     K=7     worst_abs_err=1.19e-07 PASS
+shape M=9 N=9 K=9 (k-9):
+  v0_naive           M=9     N=9     K=9     worst_abs_err=2.38e-07 PASS
+  v1_coalesced       M=9     N=9     K=9     worst_abs_err=2.38e-07 PASS
+  v2_tiled           M=9     N=9     K=9     worst_abs_err=2.38e-07 PASS
+  v3_tiled_vectorized M=9     N=9     K=9     worst_abs_err=2.38e-07 PASS
+  v4_coarsened       M=9     N=9     K=9     worst_abs_err=2.38e-07 PASS
+  v5_regtile         M=9     N=9     K=9     worst_abs_err=2.38e-07 PASS
+  cublas             M=9     N=9     K=9     worst_abs_err=2.38e-07 PASS
+shape M=16 N=16 K=1 (k-one):
+  v0_naive           M=16    N=16    K=1     worst_abs_err=0 PASS
+  v1_coalesced       M=16    N=16    K=1     worst_abs_err=0 PASS
+  v2_tiled           M=16    N=16    K=1     worst_abs_err=0 PASS
+  v3_tiled_vectorized M=16    N=16    K=1     worst_abs_err=0 PASS
+  v4_coarsened       M=16    N=16    K=1     worst_abs_err=0 PASS
+  v5_regtile         M=16    N=16    K=1     worst_abs_err=0 PASS
+  cublas             M=16    N=16    K=1     worst_abs_err=0 PASS
+shape M=65 N=129 K=9 (nonmult-128):
+  v0_naive           M=65    N=129   K=9     worst_abs_err=4.77e-07 PASS
+  v1_coalesced       M=65    N=129   K=9     worst_abs_err=4.77e-07 PASS
+  v2_tiled           M=65    N=129   K=9     worst_abs_err=4.77e-07 PASS
+  v3_tiled_vectorized M=65    N=129   K=9     worst_abs_err=4.77e-07 PASS
+  v4_coarsened       M=65    N=129   K=9     worst_abs_err=4.77e-07 PASS
+  v5_regtile         M=65    N=129   K=9     worst_abs_err=4.77e-07 PASS
+  cublas             M=65    N=129   K=9     worst_abs_err=2.38e-07 PASS
+shape M=130 N=130 K=130 (just-over-128):
+  v0_naive           M=130   N=130   K=130   worst_abs_err=6.68e-06 PASS
+  v1_coalesced       M=130   N=130   K=130   worst_abs_err=6.68e-06 PASS
+  v2_tiled           M=130   N=130   K=130   worst_abs_err=6.68e-06 PASS
+  v3_tiled_vectorized M=130   N=130   K=130   worst_abs_err=6.68e-06 PASS
+  v4_coarsened       M=130   N=130   K=130   worst_abs_err=6.68e-06 PASS
+  v5_regtile         M=130   N=130   K=130   worst_abs_err=6.68e-06 PASS
+  cublas             M=130   N=130   K=130   worst_abs_err=2.86e-06 PASS
+shape M=33 N=17 K=129 (k-129):
+  v0_naive           M=33    N=17    K=129   worst_abs_err=3.34e-06 PASS
+  v1_coalesced       M=33    N=17    K=129   worst_abs_err=3.34e-06 PASS
+  v2_tiled           M=33    N=17    K=129   worst_abs_err=3.34e-06 PASS
+  v3_tiled_vectorized M=33    N=17    K=129   worst_abs_err=3.34e-06 PASS
+  v4_coarsened       M=33    N=17    K=129   worst_abs_err=3.34e-06 PASS
+  v5_regtile         M=33    N=17    K=129   worst_abs_err=3.34e-06 PASS
+  cublas             M=33    N=17    K=129   worst_abs_err=1.91e-06 PASS
 shape M=32 N=32 K=64 (large-val, range [1e+09,1e+10]):
   v0_naive           M=32    N=32    K=64    worst_abs_err=8.44e+14 PASS
   v1_coalesced       M=32    N=32    K=64    worst_abs_err=8.44e+14 PASS
   v2_tiled           M=32    N=32    K=64    worst_abs_err=8.44e+14 PASS
   v3_tiled_vectorized M=32    N=32    K=64    worst_abs_err=8.44e+14 PASS
   v4_coarsened       M=32    N=32    K=64    worst_abs_err=8.44e+14 PASS
+  v5_regtile         M=32    N=32    K=64    worst_abs_err=8.44e+14 PASS
   cublas             M=32    N=32    K=64    worst_abs_err=4.22e+14 PASS
 shape M=32 N=32 K=64 (small-val, range [1e-11,1e-10]):
-  v0_naive           M=32    N=32    K=64    worst_abs_err=6.46e-26 PASS
-  v1_coalesced       M=32    N=32    K=64    worst_abs_err=6.46e-26 PASS
-  v2_tiled           M=32    N=32    K=64    worst_abs_err=6.46e-26 PASS
-  v3_tiled_vectorized M=32    N=32    K=64    worst_abs_err=6.46e-26 PASS
-  v4_coarsened       M=32    N=32    K=64    worst_abs_err=6.46e-26 PASS
-  cublas             M=32    N=32    K=64    worst_abs_err=5.17e-26 PASS
+  v0_naive           M=32    N=32    K=64    worst_abs_err=7.75e-26 PASS
+  v1_coalesced       M=32    N=32    K=64    worst_abs_err=7.75e-26 PASS
+  v2_tiled           M=32    N=32    K=64    worst_abs_err=7.75e-26 PASS
+  v3_tiled_vectorized M=32    N=32    K=64    worst_abs_err=7.75e-26 PASS
+  v4_coarsened       M=32    N=32    K=64    worst_abs_err=7.75e-26 PASS
+  v5_regtile         M=32    N=32    K=64    worst_abs_err=7.75e-26 PASS
+  cublas             M=32    N=32    K=64    worst_abs_err=3.88e-26 PASS
 [kern_correctness] ALL PASS (bad=0)
 ========= ERROR SUMMARY: 0 errors

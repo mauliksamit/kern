@@ -299,12 +299,13 @@ run_one(int M, int N, int K, int seed, const std::string& out_path,
   CUDA_CHECK(cudaMemcpy(dA, hA.data(), hA.size() * sizeof(float), cudaMemcpyHostToDevice));
   CUDA_CHECK(cudaMemcpy(dB, hB.data(), hB.size() * sizeof(float), cudaMemcpyHostToDevice));
 
-  std::vector<Timing> ts(6);
+  std::vector<Timing> ts(7);
   time_kernel("v0_naive", kern::launch_v0_naive, dA, dB, dC, M, N, K, ts[0]);
   time_kernel("v1_coalesced", kern::launch_v1_coalesced, dA, dB, dC, M, N, K, ts[1]);
   time_kernel("v2_tiled", kern::launch_v2_tiled, dA, dB, dC, M, N, K, ts[2]);
   time_kernel("v3_tiled_vectorized", kern::launch_v3_tiled_vectorized, dA, dB, dC, M, N, K, ts[3]);
   time_kernel("v4_coarsened", kern::launch_v4_coarsened, dA, dB, dC, M, N, K, ts[4]);
+  time_kernel("v5_regtile", kern::launch_v5_regtile, dA, dB, dC, M, N, K, ts[5]);
 #if KERN_BENCH_HAS_CUBLAS
   cublasHandle_t h;
   std::string math_mode = "cublas_unavailable";
@@ -322,19 +323,19 @@ run_one(int M, int N, int K, int seed, const std::string& out_path,
       else
         math_mode = "CUBLAS_PEDANTIC_MATH(TF32 disallowed)";
     }
-    if (!time_cublas(h, dA, dB, dC, M, N, K, ts[5], cublas_err)) {
+    if (!time_cublas(h, dA, dB, dC, M, N, K, ts[6], cublas_err)) {
       std::printf("  cublas FAILED for this shape (%s); custom-kernel timings still saved\n",
                   cublas_err.c_str());
     }
     cublasDestroy(h);
   } else {
-    ts[5].name = "cublas";
-    ts[5].failed = true;
+    ts[6].name = "cublas";
+    ts[6].failed = true;
     std::printf("  cublas unavailable at runtime\n");
   }
 #else
-  ts[5].name = "cublas";
-  ts[5].failed = true;
+  ts[6].name = "cublas";
+  ts[6].failed = true;
   std::printf("  cublas not compiled in (no CUDAToolkit at build time)\n");
 #endif
 
