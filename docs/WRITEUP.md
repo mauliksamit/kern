@@ -124,12 +124,12 @@ are covered by the awkward-shape gate.
 algorithm but launches 16×16 = 256 threads, each accumulating a 2×2 micro-tile
 in registers (4× the work per thread; A-row/B-column elements reused across the
 micro-tile; 4× more blocks eligible for concurrent residency). Tile fill is
-cooperative (256 threads × 4 elements). Result at 1024³ (reported run M): **0.65ms vs v2's
-1.13ms — 1.7× faster** (3281 vs 1904 GFLOPS); 512³: 2.2× (0.0826 vs 0.1852ms);
-rect shapes ≈ 2.2× (2.22× / 2.15×). The occupancy/work-per-thread hypothesis is confirmed by
+cooperative (256 threads × 4 elements). Result at 1024³ (reported run N): **0.64ms vs v2's
+1.12ms — 1.8× faster** (3281 vs 1904 GFLOPS); 512³: 2.2× (0.0828 vs 0.1852ms);
+rect shapes ≈ 2.2× (2.22× / 2.09×). The occupancy/work-per-thread hypothesis is confirmed by
 measurement: the 1024-thread blocks were the binding constraint, not load width
 (§6). v4 reaches 25% of the estimated 13.13 TFLOPS FP32 peak; cuBLAS still leads
-2.9× (9699 GFLOPS) — the remaining gap is the vendor library's territory
+3.2× (10456 GFLOPS) — the remaining gap is the vendor library's territory
 (tensor cores, swizzling, per-shape tuning), stated as future work, not failure.
 
 ## 8. Register blocking (v5 — MEASURED, confirmed at large shapes)
@@ -140,12 +140,12 @@ fragments). Fill efficiency 64 MAC/float vs v4's 16 (4x). Scalar shared
 loads, no swizzle: any bank-conflict cost stays in this measurement so v6
 (layout change) can isolate it.
 
-Result (reported run M) at 1024^3: 0.4096ms vs v4 0.6544 (1.6x; 5243 vs 3281
-GFLOPS); K512: 1.33x (0.2012 vs 0.2668); rect: 1.51x (0.1862 vs 0.2810). v5
-reaches 40% of the estimated peak; cuBLAS leads 1.9x (9699 GFLOPS, 74%).
+Result (reported run N) at 1024^3: 0.4251ms vs v4 0.6391 (1.5x; 5052 vs 3360
+GFLOPS); K512: 1.32x (0.2053 vs 0.2708); rect: 1.49x (0.1953 vs 0.2910). v5
+reaches 38% of the estimated peak; cuBLAS leads 2.1x (10456 GFLOPS, 80%).
 
-Crossover, stated plainly: v5 LOSES on small problems — 512^3: 0.0947 vs
-0.0826 (0.87x); 256^3: 0.0544 vs 0.0180 (0.33x). A 128-wide tile on a
+Crossover, stated plainly: v5 LOSES on small problems — 512^3: 0.0952 vs
+0.0828 (0.87x); 256^3: 0.0558 vs 0.0177 (0.32x). A 128-wide tile on a
 256-wide problem launches 4 blocks (1024 threads): the big tile starves
 parallelism where v4's 32-wide tiles fill the machine. Tile size is a bet on
 problem size; the ladder now shows both sides of it.
@@ -166,13 +166,13 @@ both ty-groups on the same bank at different addresses (2-way conflict on
 every A-fragment load). Scalar fallback fills the same transposed layout on
 edge/misaligned tiles; the fast-path decision is tile-level and block-uniform.
 
-Result (reported run M) at 1024^3: 0.3053ms vs v5 0.4096 (1.3x; 7034 vs 5243
-GFLOPS); K512: 1.25x (0.1608 vs 0.2012); rect: 1.23x (0.1517 vs 0.1862);
-512^3: 1.20x (0.0791 vs 0.0947); even 256^3: 1.16x (0.0469 vs 0.0544). v6
-reaches 54% of the estimated peak; cuBLAS leads 1.4x (9699 GFLOPS, 74%).
+Result (reported run N) at 1024^3: 0.3057ms vs v5 0.4251 (1.4x; 7026 vs 5052
+GFLOPS); K512: 1.26x (0.1632 vs 0.2053); rect: 1.33x (0.1465 vs 0.1953);
+512^3: 1.20x (0.0796 vs 0.0952); even 256^3: 1.19x (0.0470 vs 0.0558). v6
+reaches 54% of the estimated peak; cuBLAS leads 1.5x (10456 GFLOPS, 80%).
 
 What this decides: layout was NOT zero — the transposed A tile plus vector
-fill is worth a consistent ~1.2-1.3x across all five shapes, including the
+fill is worth a consistent ~1.2-1.4x across all nine shapes, including the
 4-block 256^3 launch where v5 starved (v6's cheaper fill helps exactly
 where parallelism is scarcest). v3's failure was being vector-only without
 register intensity; v6 has both. Remaining gap to cuBLAS (1.4x) is now in
@@ -219,28 +219,32 @@ Reported run: G (`results/bench_*.json`); table via
 
 | Shape | v0 | v1 | v2 | v3 | v4 | v5 | v6 | cuBLAS |
 |---|---|---|---|---|---|---|---|---|
-| 256³ | 0.0724 | 0.0356 | 0.0277 | 0.0287 | 0.0180 | 0.0544 | 0.0469 | 0.0205 |
-| 512³ | 0.3376 | 0.2601 | 0.1852 | 0.1776 | 0.0826 | 0.0947 | 0.0791 | 0.0397 |
-| 1024³ | 2.4800 | 2.2563 | 1.1277 | 1.2580 | 0.6544 | 0.4096 | 0.3053 | 0.2214 |
-| 1024×1024×512 | 1.6069 | 1.1383 | 0.5931 | 0.5909 | 0.2668 | 0.2012 | 0.1608 | 0.1083 |
-| 512×1024×1024 | 1.2743 | 1.1385 | 0.6090 | 0.6142 | 0.2782 | 0.1862 | 0.1517 | 0.1099 |
+| 256³ | 0.0729 | 0.0356 | 0.0277 | 0.0287 | 0.0180 | 0.0558 | 0.0470 | 0.0205 |
+| 512³ | 0.3410 | 0.2606 | 0.1818 | 0.1781 | 0.0828 | 0.0952 | 0.0796 | 0.0397 |
+| 1024³ | 2.4838 | 2.2709 | 1.1202 | 1.3113 | 0.6391 | 0.4251 | 0.3057 | 0.2054 |
+| 1024×1024×512 | 1.6116 | 1.1558 | 0.6020 | 0.5946 | 0.2708 | 0.2053 | 0.1632 | 0.1101 |
+| 512×1024×1024 | 1.6491 | 1.6577 | 0.6071 | 0.6294 | 0.2910 | 0.1953 | 0.1465 | 0.1124 |
+| 2048x2048x2048 | 22.6952 | 22.1483 | 9.8460 | 10.5478 | 4.6571 | 2.7927 | 2.2547 | 1.5441 |
+| 4096x4096x4096 | 405.2236 | 307.1506 | 96.1345 | 98.0207 | 45.8339 | 25.2631 | 22.4809 | 13.6699 |
+| 4096x512x1024 | 5.2393 | 5.7410 | 2.2510 | 2.4215 | 1.3183 | 0.7750 | 0.5885 | 0.4493 |
+| 512x4096x1024 | 5.0075 | 5.6741 | 2.2637 | 2.4078 | 1.3141 | 0.7714 | 0.5910 | 0.4559 |
 
-GFLOPS (1024³): v0 866 → v1 952 → v2 1904 → v3 1707 → v4 3281 →
-**v5 5243** → **v6 7034** → cuBLAS 9699
+GFLOPS (1024³): v0 865 → v1 952 → v2 1904 → v3 1707 → v4 3281 →
+**v5 5243** → **v6 7026** → cuBLAS 9699
 (74% of the 13.13 TFLOPS estimated peak: 36 SMs × 128 cores × 2 FMA ×
 1.425 GHz reported clock — an estimate, re-verify cores/SM against the whitepaper
-before citing elsewhere; observed boost reached 2625 MHz, so the estimate is
+before citing elsewhere; observed boost reached 2730 MHz, so the estimate is
 likely understated, see §13). Findings: v0→v1 helps most at small shapes (2.0× at 256³,
-1.10× at 1024³ — mapping overhead vs memory); v1→v2 ≈ 1.3–2.0× (reuse);
-v2→v3 never a gain in any run (v3 slower on 4/5 shapes here: 1.2580 vs 1.1277 ms
+1.09× at 1024³ — mapping overhead vs memory); v1→v2 ≈ 1.3–2.0× (reuse);
+v2→v3 never a gain in any run (v3 slower on 7/9 shapes here: 1.31 vs 1.12 ms
 at 1024³; negative result, §14); v2→v4 ≈ 1.5–2.2×
-(occupancy); v4→v5 ≈ 1.3–1.6× at 1024²-scale and above, negative below 512³
-(tile-size crossover, §8); v5→v6 ≈ 1.2–1.3× on every shape including 256³
-(layout + vector fill help even 4-block launches); cuBLAS leads v6 1.4–2.3×;
-at 256³ v4 still beats cuBLAS 1.1× while tile-starved v5 trails
+(occupancy); v4→v5 ≈ 1.3–1.8× at 1024²-scale and above, negative below 512³
+(tile-size crossover, §8); v5→v6 ≈ 1.2–1.4× on every shape including 256³
+(layout + vector fill help even 4-block launches); cuBLAS leads v6 1.3–2.3×;
+at 256³ v4 still beats cuBLAS 1.2× while tile-starved v5 trails
 (launch/parallelism regime — the ranking itself is size-dependent).
-Repeatability: runs F/G/H/I/J/K/L/M adjudicated per cell (see §13); prior D/E/C
-values retained in LOG.md. v3 beats v2 only at 512³ (4%) and K512 (0.4%) —
+Repeatability: runs F/G/H/I/J/K/L/M/N adjudicated per cell (see §13); prior D/E/C
+values retained in LOG.md. v3 beats v2 only at 512³ (2%) and K512 (1%) —
 within noise in every session.
 
 ## 13. Profiler evidence (NOT RUN — blocked, with evidence)
@@ -279,13 +283,22 @@ generated table keeps one raw run per shape.
 Process note: run E's JSONs were overwritten by run F before being copied
 aside — E values survive only in prose (prior LOG/WRITEUP); all later runs
 are copied aside before the next run starts.
+Newest session (runs N/O/P, 9 shapes): N-vs-O drift flagged 12 cells, all on
+multi-ms kernels (v0/v1 at 1024³/rect/tall, cublas at 1024³/tall/wide); every
+v2–v6 cell except two marginals (2048 v2 6.0%, 1024³ v4/v5 5–6%) agreed.
+Three-run adjudication + burst-free-floor analysis (per-cell iters
+distributions in LOG.md): K512-v0 reads 1.25 (D/E/F, 87–94% of iters near the
+1.24 floor) vs 1.61–1.63 (G/J/N/O/P, 15–44% near floor, same 1.24 floor) —
+the slow mode is burst contamination shifting the median, not a machine-state
+change (floors agree across all clock states). Reported run N (fewest
+severely-disturbed cells); F–P medians disclosed here and in LOG.md.
 
 ## 14. Failed experiments and negative results
 
 Kept in `docs/NEGATIVE_RESULTS.md` (design rejections: 64×64 thread blocks,
 GPU-side double accumulation, timing copies) plus the v3 barrier fix, the v3
-vectorization non-result (within ±5% of v2 on all 5 shapes across runs D/E —
-cooperative-load/branch overhead at the 1024-thread occupancy wall; v4 shows
+vectorization non-result (never beyond noise on any of 9 shapes across all
+sessions — cooperative-load/branch overhead at the 1024-thread occupancy wall; v4 shows
 the wall was the real problem), and the ptxas `__launch_bounds__` rejection in
 `LOG.md`. Policy: a hypothesis that measures within noise is recorded with
 numbers and kept reproducible — never deleted, never re-timed until attractive.
@@ -294,9 +307,13 @@ numbers and kept reproducible — never deleted, never re-timed until attractive
 
 Single data point (RTX 5070 Laptop, Blackwell sm_120, WDDM display-attached, driver
 617.14, CUDA 13.0): the ladder ranks v0 < v1 < v2 ≈ v3 < v4 < v5 < v6 < cuBLAS
-at 1024²-scale and above, with v6 at 54% and cuBLAS at 74% of estimated FP32
+at 1024²-scale and above, with v6 at 54% and cuBLAS at 80% of estimated FP32
 peak at 1024³. At 256³ the ranking inverts for the big tiles (v5/v6 trail v4
-3×/2.6×) while v4 still beats cuBLAS 1.1× — tile size is a bet on problem size. No conclusion is generalized to other architectures without
+3.2×/2.7×) while v4 still beats cuBLAS 1.2× — tile size is a bet on problem size.
+Scaling to 4096³ (64× the FLOPs of 1024³): v6 slows 73× (near-linear),
+cuBLAS 67×, but v0 slows 163× (405 vs 2.48 ms) — the no-reuse kernel falls off
+a cache cliff (L2-sized working sets stop fitting) while tiled kernels and
+cuBLAS ride linear scaling. No conclusion is generalized to other architectures without
 re-running; the `-DKERN_CUDA_ARCH` flag and `tools/detect_arch.py` exist for that.
 
 ## 16. Lessons relevant to ML inference and training

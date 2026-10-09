@@ -69,7 +69,64 @@ check_one(const char* name, void (*launch)(const float*, const float*, float*, i
 }
 
 #ifdef KERN_HAS_CUBLAS
-// Validate the vendor baseline computes the same math (Phase B).
+// Big-shape validation without a CPU reference (Phase 3 --big): compare each
+// kernel directly against cuBLAS on the GPU. Transitivity argument (see
+// docs/WRITEUP.md): cuBLAS matches the double-accumulated CPU reference on 20
+// smaller shapes (gate above), so kernel==cuBLAS here implies kernel==ref
+// within the sum of both float-rounding errors. Tolerance reuses near():
+// both sides are single-precision with the same K*eps-class error as the
+// standard gate, and the double reference sits within 1e-7-ish of exact, so
+// no loosening is needed for random test data. A failure here is investigated,
+// never tolerated away.
+int check_vs_cublas(const char* name,
+                    void (*launch)(const float*, const float*, float*, int, int, int),
+                    cublasHandle_t h, const float* dA, const float* dB, float* dC, float* dRef,
+                    int M, int N, int K, int seed) {
+  launch(dA, dB, dC, M, N, K);
+  CUDA_CHECK_LAST_ERROR();
+  CUDA_CHECK(cudaDeviceSynchronize());
+  const float alpha = 1.0f, beta = 0.0f;
+  cublasStatus_t st =
+      cublasSgemm(h, CUBLAS_OP_N, CUBLAS_OP_N, N, M, K, &alpha, dB, N, dA, K, &beta, dRef, N);
+  if (st != CUBLAS_STATUS_SUCCESS) {
+    std::printf("  %-18s M=%-5d N=%-5d K=%-5d cublasSgemm FAILED\n", "cublas-ref", M, N, K);
+    return 1;
+  }
+  CUDA_CHECK(cudaDeviceSynchronize());
+  // dRef holds C^T as N x M col-major, so C[i][j] = (C^T)[j][i] lives at
+  // buffer index i*N+j — the same index as row-major C[i][j] in hC.
+  std::size_t n = static_cast<std::size_t>(M) * N;
+  std::vector<float> hC(n), hR(n);
+  CUDA_CHECK(cudaMemcpy(hC.data(), dC, n * sizeof(float), cudaMemcpyDeviceToHost));
+  CUDA_CHECK(cudaMemcpy(hR.data(), dRef, n * sizeof(float), cudaMemcpyDeviceToHost));
+  int bad = 0;
+  float worst = 0.0f;
+  for (int i = 0; i < M; ++i) {
+    for (int j = 0; j < N; ++j) {
+      float got = hC[(std::size_t)i * N + j];
+      float ref = hR[(std::size_t)i * N + j];
+      float diff = got - ref;
+      if (diff < 0)
+        diff = -diff;
+      if (diff > worst)
+        worst = diff;
+      if (!kern::near(got, ref, K)) {
+        if (bad < 5) {
+          std::printf("    mismatch %s-vs-cublas [%d,%d] got=%g ref=%g (M=%d N=%d K=%d seed=%d)\n",
+                      name, i, j, got, ref, M, N, K, seed);
+        }
+        ++bad;
+      }
+    }
+  }
+  std::printf("  %-18s M=%-5d N=%-5d K=%-5d worst_abs_err=%.3g %s\n", name, M, N, K, worst,
+              bad == 0 ? "PASS(vs-cublas)" : "FAIL");
+  return bad;
+}
+
+// Validate the vendor baseline computes the same math: col-major C^T = B^T * A^T
+// via swapped buffers with CUBLAS_OP_N, valid for all shapes (same derivation
+// as src/bench.cu time_cublas).
 int
 check_cublas(cublasHandle_t h, const float* dA, const float* dB, float* dC,
              const std::vector<float>& hA, const std::vector<float>& hB, int M, int N, int K,
@@ -120,11 +177,14 @@ int
 main(int argc, char** argv) {
   int seed = 1234;
   std::string out;
+  bool big = false; // --big: also validate Phase 3 bench shapes (GPU-vs-cuBLAS)
   for (int i = 1; i < argc; ++i) {
     if (std::strcmp(argv[i], "--seed") == 0 && i + 1 < argc)
       seed = std::atoi(argv[++i]);
     if (std::strcmp(argv[i], "--out") == 0 && i + 1 < argc)
       out = argv[++i];
+    if (std::strcmp(argv[i], "--big") == 0)
+      big = true;
   }
   std::printf("[kern_correctness] seed=%d\n", seed);
 
@@ -155,6 +215,14 @@ main(int argc, char** argv) {
   };
   // Magnitude coverage: second pass reuses a subset with extreme values.
   const Shape mag_shapes[] = {{32, 32, 64, "large-val"}, {32, 32, 64, "small-val"}};
+  // Big shapes for --big (Phase 3 bench coverage): validated kernel-vs-cuBLAS
+  // on the GPU (see check_vs_cublas note above for the transitivity argument).
+  const Shape big_shapes[] = {
+      {2048, 2048, 2048, "big-square"},
+      {4096, 4096, 4096, "huge-square"},
+      {4096, 512, 1024, "tall-skinny"},
+      {512, 4096, 1024, "wide"},
+  };
 
   using Launcher = void (*)(const float*, const float*, float*, int, int, int);
   const struct {
@@ -237,6 +305,36 @@ main(int argc, char** argv) {
   std::printf("[kern_correctness] %s (bad=%d)\n", total_bad == 0 ? "ALL PASS" : "FAILURES",
               total_bad);
 #ifdef KERN_HAS_CUBLAS
+  if (big) {
+    if (!cublas_ok) {
+      std::printf("--big requested but cuBLAS unavailable; big-shape checks SKIPPED\n");
+    } else {
+      for (const auto& s : big_shapes) {
+        std::printf("shape M=%d N=%d K=%d (%s) [vs-cublas]:\n", s.M, s.N, s.K, s.tag);
+        std::vector<float> hA(static_cast<std::size_t>(s.M) * s.K),
+            hB(static_cast<std::size_t>(s.K) * s.N);
+        fill(rng, hA, -1.0f, 1.0f);
+        fill(rng, hB, -1.0f, 1.0f);
+        float *dA = nullptr, *dB = nullptr, *dC = nullptr, *dRef = nullptr;
+        CUDA_CHECK(cudaMalloc(&dA, hA.size() * sizeof(float)));
+        CUDA_CHECK(cudaMalloc(&dB, hB.size() * sizeof(float)));
+        CUDA_CHECK(cudaMalloc(&dC, static_cast<std::size_t>(s.M) * s.N * sizeof(float)));
+        CUDA_CHECK(cudaMalloc(&dRef, static_cast<std::size_t>(s.M) * s.N * sizeof(float)));
+        CUDA_CHECK(cudaMemcpy(dA, hA.data(), hA.size() * sizeof(float), cudaMemcpyHostToDevice));
+        CUDA_CHECK(cudaMemcpy(dB, hB.data(), hB.size() * sizeof(float), cudaMemcpyHostToDevice));
+        for (const auto& k : kernels) {
+          total_bad += check_vs_cublas(k.name, k.fn, cublas_h, dA, dB, dC, dRef, s.M, s.N,
+                                       s.K, seed);
+        }
+        CUDA_CHECK(cudaFree(dA));
+        CUDA_CHECK(cudaFree(dB));
+        CUDA_CHECK(cudaFree(dC));
+        CUDA_CHECK(cudaFree(dRef));
+      }
+      std::printf("[kern_correctness --big] %s (bad=%d)\n", total_bad == 0 ? "ALL PASS" : "FAILURES",
+                  total_bad);
+    }
+  }
   if (cublas_ok)
     cublasDestroy(cublas_h);
 #endif

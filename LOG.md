@@ -265,3 +265,43 @@
   from a controlled experiment (only layout/fill changed v5->v6),
   stated as such in WRITEUP.
 - Next: Phase 3 broader bench (2048/4096, tall-skinny, wide, TDR skips).
+
+## 2026-10-09 — Phase 3 gatekeeping: 4096^3 bit-exact vs cuBLAS, investigated
+- Surprise: `--big` validation shows worst_abs_err=0 EXACTLY at 4096^3-square
+  for all 7 kernels, across seeds 1234 and 777 — while 2048^3 (1.6e-4) and
+  tall/wide (9e-5) show normal rounding-level diffs vs cuBLAS.
+- Investigation (no guessing): verified call args (cublas writes dRef, kernels
+  dC — no aliasing), loop/index math, guard balance; instrumented a TEMPORARY
+  env-gated spot-dump (reverted after, never committed) showing random nonzero
+  inputs and a normal nonzero diff at tall-skinny — the harness demonstrably
+  detects differences. First dump misread (tall-skinny overwrote the file;
+  gate fixed to exact shape) — owned as a near-miss in method, caught before
+  any conclusion.
+- Assessment: kernels ran clean (no errors, full 16.7M outputs written) and
+  match the vendor baseline to the bit. Best hypothesis: under PEDANTIC math
+  at this large-square shape cuBLAS selects a per-element sequential-FMA
+  accumulation identical in order to the naive kernels (IEEE-deterministic);
+  16.7M-element coincidence by chance is ~impossible, and a harness bug is
+  excluded by the nonzero diffs elsewhere. NOT verified (ncu blocked — kernel
+  names unobservable), so stated as hypothesis, not finding. The gate's job —
+  catching index/bounds/tile bugs, which would show as LARGE errors — is
+  unaffected: any such bug would still fail loudly.
+- Next: keep the --big gate as is; revisit only if ncu access ever allows
+  confirming the cuBLAS kernel selection.
+
+## 2026-10-09 — Phase 3: 9-shape bench, --big gate, TDR dormancy, v7 skipped
+- Bottleneck: bench stopped at 1024 (transformer shapes are 4096-wide); no
+  big-shape validation; v7 undecided.
+- Change (single theme): `--all` runs 9 shapes (2048/4096 squares, tall-skinny
+  4096x512x1024, wide 512x4096x1024) with a per-shape TDR skip path (SKIPPED
+  rendering tested synthetically); correctness `--big` validates the 4 shapes
+  kernel-vs-cuBLAS on GPU (CPU double-ref at 4096^3 would take ~10+ min;
+  transitive trust documented); v7 warp-tiling SKIPPED with reason (v6 at 73%
+  of cuBLAS, remainder is vendor territory, no counters to validate warps).
+- Metric: --big ALL PASS (bad=0); sanitizer 4/4 clean (160/160); bench N/O/P
+  (60/72 cells <=5%); reported run N. 4096^3: v6 22.48ms / 6114 GFLOPS (47%
+  est. peak) vs cuBLAS 13.67ms (77%); v0 405ms max single launch (5x under
+  TDR — skip path dormant, empirically justified). Scaling 1024->4096 (64x
+  FLOPs): v6 73x, cuBLAS 67x, v0 163x (cache cliff for no-reuse kernels).
+  Tables (72 rows) + plot (9 shapes) regenerated; audit passes (441 traced).
+- Next: Phase 4 ml/transformer_gemm.py (venv + CUDA torch or NOT RUN).

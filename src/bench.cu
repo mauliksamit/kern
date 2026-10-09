@@ -14,7 +14,8 @@
 // - Vendor baseline: cuBLAS sgemm timed identically (where CUDAToolkit found).
 // Usage:
 //   kern_bench --M 1024 --N 1024 --K 1024 --seed 0 --out results/bench_M1024_N1024_K1024.json
-//   kern_bench --all  (runs 256/512/1024 square + 2 rect shapes, one JSON each)
+//   kern_bench --all  (9 shapes: squares 256/512/1024/2048/4096, 2 rects,
+//                      tall-skinny 4096x512x1024, wide 512x4096x1024)
 #include "kern/cuda_check.h"
 #include "kern/kernels.h"
 
@@ -47,6 +48,8 @@ struct Timing {
   double median_ms = 0, min_ms = 0, p95_ms = 0, mean_ms = 0;
   double gflops = 0, gbps = 0; // derived from median.
   bool failed = false;         // true if the backend reported failure (no valid timing).
+  bool skipped = false;        // true if intentionally not launched (see skip_slow).
+  std::string skip_reason;
 };
 
 double
@@ -280,7 +283,7 @@ time_cublas(cublasHandle_t h, const float* dA, const float* dB, float* dC, int M
 
 void
 run_one(int M, int N, int K, int seed, const std::string& out_path,
-        const std::string& commit_override) {
+        const std::string& commit_override, bool skip_slow, const char* skip_reason) {
   std::printf("[bench] M=%d N=%d K=%d seed=%d\n", M, N, K, seed);
   EnvSample env_before = sample_env();
   std::mt19937 rng((unsigned)seed);
@@ -300,8 +303,23 @@ run_one(int M, int N, int K, int seed, const std::string& out_path,
   CUDA_CHECK(cudaMemcpy(dB, hB.data(), hB.size() * sizeof(float), cudaMemcpyHostToDevice));
 
   std::vector<Timing> ts(8);
-  time_kernel("v0_naive", kern::launch_v0_naive, dA, dB, dC, M, N, K, ts[0]);
-  time_kernel("v1_coalesced", kern::launch_v1_coalesced, dA, dB, dC, M, N, K, ts[1]);
+  if (skip_slow) {
+    // TDR guard (Phase 3): on a display GPU a single kernel launch approaching
+    // the ~2 s Windows TDR limit risks driver recovery mid-bench. The naive
+    // kernels are skipped at such shapes with the reason recorded (rendered as
+    // SKIPPED, never hidden). None of the current --all shapes trigger this:
+    // the slowest probe on record is ~160 ms (v0 at 4096^3) << 2 s.
+    ts[0].name = "v0_naive";
+    ts[0].skipped = true;
+    ts[0].skip_reason = skip_reason;
+    ts[1].name = "v1_coalesced";
+    ts[1].skipped = true;
+    ts[1].skip_reason = skip_reason;
+    std::printf("  v0/v1 SKIPPED at this shape (%s)\n", skip_reason);
+  } else {
+    time_kernel("v0_naive", kern::launch_v0_naive, dA, dB, dC, M, N, K, ts[0]);
+    time_kernel("v1_coalesced", kern::launch_v1_coalesced, dA, dB, dC, M, N, K, ts[1]);
+  }
   time_kernel("v2_tiled", kern::launch_v2_tiled, dA, dB, dC, M, N, K, ts[2]);
   time_kernel("v3_tiled_vectorized", kern::launch_v3_tiled_vectorized, dA, dB, dC, M, N, K, ts[3]);
   time_kernel("v4_coarsened", kern::launch_v4_coarsened, dA, dB, dC, M, N, K, ts[4]);
@@ -407,11 +425,14 @@ run_one(int M, int N, int K, int seed, const std::string& out_path,
                env_after.power_limit_w.c_str());
   for (std::size_t i = 0; i < ts.size(); ++i) {
     std::fprintf(f,
-                 "    {\"kernel\": \"%s\", \"failed\": %s, \"median_ms\": %.6f, \"min_ms\": %.6f, "
+                 "    {\"kernel\": \"%s\", \"failed\": %s, \"skipped\": %s, \"median_ms\": %.6f, "
+                 "\"min_ms\": %.6f, "
                  "\"p95_ms\": %.6f, \"mean_ms\": %.6f, \"gflops\": %.3f, \"gbps\": %.3f, "
                  "\"iters\": [",
-                 ts[i].name.c_str(), ts[i].failed ? "true" : "false", ts[i].median_ms, ts[i].min_ms,
-                 ts[i].p95_ms, ts[i].mean_ms, ts[i].gflops, ts[i].gbps);
+                 ts[i].name.c_str(), ts[i].failed ? "true" : "false",
+                 ts[i].skipped ? ("\"" + ts[i].skip_reason + "\"").c_str() : "false",
+                 ts[i].median_ms, ts[i].min_ms, ts[i].p95_ms, ts[i].mean_ms, ts[i].gflops,
+                 ts[i].gbps);
     for (std::size_t j = 0; j < ts[i].iters_ms.size(); ++j) {
       std::fprintf(f, "%s%.6f", j ? ", " : "", ts[i].iters_ms[j]);
     }
@@ -452,16 +473,31 @@ main(int argc, char** argv) {
       all = true;
   }
   if (!all) {
-    run_one(M, N, K, seed, out, commit_override);
+    run_one(M, N, K, seed, out, commit_override, false, "");
     return 0;
   }
-  const int sq[] = {256, 512, 1024};
-  for (int s : sq) {
-    char path[256];
-    snprintf(path, sizeof(path), "results/bench_M%d_N%d_K%d.json", s, s, s);
-    run_one(s, s, s, seed, path, commit_override);
+  // Phase 3 bench matrix: squares 256..4096, two rects, one tall-skinny, one
+  // wide. skip_slow guards the Windows TDR limit (see run_one): no current
+  // shape sets it (slowest probe on record ~160 ms for v0 at 4096^3, far from
+  // ~2 s), so every cell is measured; the SKIPPED path is exercised by test
+  // (scripts tested with a synthetic JSON, not committed).
+  struct Cfg {
+    int M, N, K;
+    const char* file;
+  };
+  const Cfg cfgs[] = {
+      {256, 256, 256, "results/bench_M256_N256_K256.json"},
+      {512, 512, 512, "results/bench_M512_N512_K512.json"},
+      {1024, 1024, 1024, "results/bench_M1024_N1024_K1024.json"},
+      {2048, 2048, 2048, "results/bench_M2048_N2048_K2048.json"},
+      {4096, 4096, 4096, "results/bench_M4096_N4096_K4096.json"},
+      {1024, 1024, 512, "results/bench_M1024_N1024_K512.json"},
+      {512, 1024, 1024, "results/bench_M512_N1024_K1024.json"},
+      {4096, 512, 1024, "results/bench_M4096_N512_K1024.json"},
+      {512, 4096, 1024, "results/bench_M512_N4096_K1024.json"},
+  };
+  for (const auto& c : cfgs) {
+    run_one(c.M, c.N, c.K, seed, c.file, commit_override, false, "");
   }
-  run_one(1024, 1024, 512, seed, "results/bench_M1024_N1024_K512.json", commit_override);
-  run_one(512, 1024, 1024, seed, "results/bench_M512_N1024_K1024.json", commit_override);
   return 0;
 }

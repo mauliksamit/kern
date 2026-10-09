@@ -29,8 +29,8 @@ def load(dirpath):
             d = json.load(f)
         shape = (d["M"], d["N"], d["K"])
         for r in d.get("results", []):
-            if r.get("failed", False):
-                continue
+            if r.get("failed", False) or r.get("skipped", False):
+                continue  # no valid timing to compare
             data[(shape, r["kernel"])] = r["median_ms"]
     return data
 

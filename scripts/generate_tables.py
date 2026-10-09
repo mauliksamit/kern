@@ -27,6 +27,19 @@ def load_rows():
         for r in d.get("results", []):
             if r.get("failed", False):
                 continue  # backend failure recorded in JSON; never tabulated
+            if r.get("skipped", False):
+                rows.append(
+                    {
+                        "shape": f"{d['M']}x{d['N']}x{d['K']}",
+                        "kernel": r["kernel"],
+                        "median_ms": None,
+                        "gflops": None,
+                        "gbps": None,
+                        "file": os.path.basename(path),
+                        "skipped": r["skipped"],
+                    }
+                )
+                continue  # intentionally not launched; rendered as SKIPPED
             rows.append(
                 {
                     "shape": f"{d['M']}x{d['N']}x{d['K']}",
@@ -35,6 +48,7 @@ def load_rows():
                     "gflops": r["gflops"],
                     "gbps": r["gbps"],
                     "file": os.path.basename(path),
+                    "skipped": False,
                 }
             )
     return rows
@@ -51,6 +65,12 @@ def render(rows):
     out = ["| Shape (MxNxK) | Kernel | Median (ms) | GFLOPS | GB/s | Source |",
            "|---|---|---|---|---|---|"]
     for r in rows:
+        if r.get("skipped", False):
+            out.append(
+                f"| {r['shape']} | {r['kernel']} | SKIPPED ({r['skipped']}) | "
+                f"\u2014 | \u2014 | `{r['file']}` |"
+            )
+            continue
         out.append(
             f"| {r['shape']} | {r['kernel']} | {r['median_ms']:.4f} | "
             f"{r['gflops']:.1f} | {r['gbps']:.1f} | `{r['file']}` |"

@@ -43,6 +43,8 @@ def load_numbers():
         except Exception:
             continue
         for r in d.get("results", []):
+            if r.get("failed", False) or r.get("skipped", False):
+                continue  # failed/skipped backends carry no measurable value
             for key in ("median_ms", "min_ms", "p95_ms", "mean_ms", "gflops", "gbps"):
                 if key in r:
                     nums.append(float(r[key]))
