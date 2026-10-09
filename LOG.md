@@ -333,3 +333,38 @@
   0.308224 ms vs committed 0.305664 ms (ratio 1.008, bar was 10%).
   Tables fresh (72 rows), audit passes (736 traced), plot covers 9 shapes.
 - Next: commit Phase 5, push, final report.
+
+## 2026-10-09 — Strict-IEEE default: reruns Q/U/V, reported run V, fast-math control
+- Bottleneck: committed numbers were measured with `--use_fast_math` (retained
+  N/O JSONs record it in `compile_flags`, build at `a2e6c0a`) — the repo rule
+  is strict IEEE by default (README carve-out covered the old numbers, but the
+  default itself was unmeasured).
+- Change: `KERN_FAST_MATH` CMake option, default OFF (commit `6d9dbb0`; only
+  delta vs `a2e6c0a` besides docs is the verified-neutral clang-format pass —
+  no semantic kernel change); rebuilt strict; `kern_bench --all` runs Q
+  (4 shapes), U/V (9 shapes, seed 0), each copied aside before the next run;
+  new `scripts/compare_runs.py` (fast-math N/O vs strict V, 72 cells).
+- Metric: U-vs-V drift flagged 8 cells above 5% (worst 32.2% K512-v1: U burst
+  1.7105 vs N/O/V ~1.16). V matches the multi-run majority on 7 of 8; the 8th
+  (rect 512x1024x1024 v0, drift 21.9%) is bimodal N/U ~1.64 vs O/V ~1.28 —
+  both modes disclosed in WRITEUP S13; reported run V takes the O-side mode.
+  Control: 8/72 cells above 5%, ALL on strict-unstable cells (largest two are
+  the N-side burst modes); v4/v5/v6 within noise on all 9 shapes. Flag effect
+  indistinguishable from WDDM session noise — strict stays default.
+  Reported run V 1024^3: v0 2.6367 / v1 2.2912 / v2 1.1295 / v3 1.3083 /
+  v4 0.6397 / v5 0.4248 / v6 0.3097 (6934 GFLOPS, 69% of cuBLAS) /
+  cuBLAS 0.2128. Tables (72 rows) + plot regenerated; audit passes (736).
+- ncu correction, owned: "even --query-metrics fails" was wrong — listing
+  works (1MB inventory committed as `results/ncu/query_metrics_2025.3.1.txt`;
+  confirms `run_ncu.sh` sample names/sections for ncu 2025.3.1); only counter
+  *collection* is blocked (`ERR_NVGPUCTRPERM`). WRITEUP S13 fixed. Duplicate
+  `list_sections_2025.3.1.txt` (byte-identical to committed `.log`) deleted.
+  `refresh_vall.py` (temp) NOT run as-is: 20/21 anchors already applied by
+  earlier sibling scripts — only its NEGATIVE_RESULTS line was still pending
+  (applied manually after verifying 6/9, worst +15.8%).
+- Residual gap, stated plainly: correctness + sanitizer gates were last run on
+  the fast-math binary; strict-binary re-run NOT RUN (GPU execution stopped
+  by policy (no admin or device changes) after the `nvidia-smi` permission failure).
+  When unblocked: `build/kern_correctness --seed 1234` + sanitizer script,
+  then amend this entry.
+- Next: commit (evidence + prose), push, final report.

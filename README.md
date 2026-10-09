@@ -21,11 +21,11 @@ claims rest on `cudaEvent` timing plus labeled analytical reasoning.
   expect scheduling noise; hence medians, repeats, drift checks). CUDA 13.0 +
   MSVC 19.44, CMake 4.4.3, `ncu`/`compute-sanitizer` 2025.3.1.0, no `nsys`.
   Full record: `docs/ENVIRONMENT.md`.
-- Headline result (1024³, medians, reported run N; runs O/P + J/K/L/M/F/G/H/I disclosed
+- Headline result (1024³, medians, reported run V; runs U + O/P/N + J/K/L/M/F/G/H/I disclosed
   in `docs/WRITEUP.md` §13):
-  `v0` 2.48ms → `v1` 2.27ms → `v2` 1.12ms → `v3` 1.31ms → `v4` 0.64ms →
-  `v5` 0.425ms → **`v6` 0.306ms** (7026 GFLOPS, 54% of the 13.13 TFLOPS estimated FP32 peak) →
-  cuBLAS 0.205ms (10456 GFLOPS, 80% of est. peak). Details + caveats:
+  `v0` 2.64ms → `v1` 2.29ms → `v2` 1.13ms → `v3` 1.31ms → `v4` 0.64ms →
+  `v5` 0.425ms → **`v6` 0.310ms** (6934 GFLOPS, 69% of cuBLAS) →
+  cuBLAS 0.213ms (10093 GFLOPS). Details + caveats:
   `docs/WRITEUP.md`.
 
 ## Build, run, reproduce (one command each)
@@ -75,78 +75,78 @@ python3 scripts/generate_tables.py --check
 <!-- RESULTS-BEGIN -->
 | Shape (MxNxK) | Kernel | Median (ms) | GFLOPS | GB/s | Source |
 |---|---|---|---|---|---|
-| 1024x1024x1024 | v0_naive | 2.4838 | 864.6 | 5.1 | `bench_M1024_N1024_K1024.json` |
-| 1024x1024x1024 | v1_coalesced | 2.2709 | 945.6 | 5.5 | `bench_M1024_N1024_K1024.json` |
-| 1024x1024x1024 | v2_tiled | 1.1202 | 1917.1 | 11.2 | `bench_M1024_N1024_K1024.json` |
-| 1024x1024x1024 | v3_tiled_vectorized | 1.3113 | 1637.7 | 9.6 | `bench_M1024_N1024_K1024.json` |
-| 1024x1024x1024 | v4_coarsened | 0.6391 | 3360.3 | 19.7 | `bench_M1024_N1024_K1024.json` |
-| 1024x1024x1024 | v5_regtile | 0.4251 | 5052.2 | 29.6 | `bench_M1024_N1024_K1024.json` |
-| 1024x1024x1024 | v6_vec_transposed | 0.3057 | 7025.6 | 41.2 | `bench_M1024_N1024_K1024.json` |
-| 1024x1024x1024 | cublas | 0.2054 | 10456.4 | 61.3 | `bench_M1024_N1024_K1024.json` |
-| 1024x1024x512 | v0_naive | 1.6116 | 666.3 | 5.2 | `bench_M1024_N1024_K512.json` |
-| 1024x1024x512 | v1_coalesced | 1.1558 | 929.0 | 7.3 | `bench_M1024_N1024_K512.json` |
-| 1024x1024x512 | v2_tiled | 0.6020 | 1783.5 | 13.9 | `bench_M1024_N1024_K512.json` |
-| 1024x1024x512 | v3_tiled_vectorized | 0.5946 | 1805.9 | 14.1 | `bench_M1024_N1024_K512.json` |
-| 1024x1024x512 | v4_coarsened | 0.2708 | 3965.3 | 31.0 | `bench_M1024_N1024_K512.json` |
-| 1024x1024x512 | v5_regtile | 0.2053 | 5230.6 | 40.9 | `bench_M1024_N1024_K512.json` |
-| 1024x1024x512 | v6_vec_transposed | 0.1632 | 6580.6 | 51.4 | `bench_M1024_N1024_K512.json` |
-| 1024x1024x512 | cublas | 0.1101 | 9748.5 | 76.2 | `bench_M1024_N1024_K512.json` |
-| 2048x2048x2048 | v0_naive | 22.6952 | 757.0 | 2.2 | `bench_M2048_N2048_K2048.json` |
-| 2048x2048x2048 | v1_coalesced | 22.1483 | 775.7 | 2.3 | `bench_M2048_N2048_K2048.json` |
-| 2048x2048x2048 | v2_tiled | 9.8460 | 1744.8 | 5.1 | `bench_M2048_N2048_K2048.json` |
-| 2048x2048x2048 | v3_tiled_vectorized | 10.5478 | 1628.8 | 4.8 | `bench_M2048_N2048_K2048.json` |
-| 2048x2048x2048 | v4_coarsened | 4.6571 | 3689.0 | 10.8 | `bench_M2048_N2048_K2048.json` |
-| 2048x2048x2048 | v5_regtile | 2.7927 | 6151.8 | 18.0 | `bench_M2048_N2048_K2048.json` |
-| 2048x2048x2048 | v6_vec_transposed | 2.2547 | 7619.5 | 22.3 | `bench_M2048_N2048_K2048.json` |
-| 2048x2048x2048 | cublas | 1.5441 | 11125.9 | 32.6 | `bench_M2048_N2048_K2048.json` |
-| 256x256x256 | v0_naive | 0.0729 | 460.5 | 10.8 | `bench_M256_N256_K256.json` |
-| 256x256x256 | v1_coalesced | 0.0348 | 965.5 | 22.6 | `bench_M256_N256_K256.json` |
-| 256x256x256 | v2_tiled | 0.0275 | 1219.3 | 28.6 | `bench_M256_N256_K256.json` |
-| 256x256x256 | v3_tiled_vectorized | 0.0285 | 1178.2 | 27.6 | `bench_M256_N256_K256.json` |
-| 256x256x256 | v4_coarsened | 0.0177 | 1892.7 | 44.4 | `bench_M256_N256_K256.json` |
-| 256x256x256 | v5_regtile | 0.0558 | 600.9 | 14.1 | `bench_M256_N256_K256.json` |
-| 256x256x256 | v6_vec_transposed | 0.0470 | 713.8 | 16.7 | `bench_M256_N256_K256.json` |
-| 256x256x256 | cublas | 0.0213 | 1576.8 | 37.0 | `bench_M256_N256_K256.json` |
-| 4096x4096x4096 | v0_naive | 405.2236 | 339.2 | 0.5 | `bench_M4096_N4096_K4096.json` |
-| 4096x4096x4096 | v1_coalesced | 307.1506 | 447.5 | 0.7 | `bench_M4096_N4096_K4096.json` |
-| 4096x4096x4096 | v2_tiled | 96.1345 | 1429.7 | 2.1 | `bench_M4096_N4096_K4096.json` |
-| 4096x4096x4096 | v3_tiled_vectorized | 98.0207 | 1402.1 | 2.1 | `bench_M4096_N4096_K4096.json` |
-| 4096x4096x4096 | v4_coarsened | 45.8339 | 2998.6 | 4.4 | `bench_M4096_N4096_K4096.json` |
-| 4096x4096x4096 | v5_regtile | 25.2631 | 5440.3 | 8.0 | `bench_M4096_N4096_K4096.json` |
-| 4096x4096x4096 | v6_vec_transposed | 22.4809 | 6113.6 | 9.0 | `bench_M4096_N4096_K4096.json` |
-| 4096x4096x4096 | cublas | 13.6699 | 10054.1 | 14.7 | `bench_M4096_N4096_K4096.json` |
-| 4096x512x1024 | v0_naive | 5.2393 | 819.8 | 5.2 | `bench_M4096_N512_K1024.json` |
-| 4096x512x1024 | v1_coalesced | 5.7410 | 748.1 | 4.7 | `bench_M4096_N512_K1024.json` |
-| 4096x512x1024 | v2_tiled | 2.2510 | 1908.0 | 12.1 | `bench_M4096_N512_K1024.json` |
-| 4096x512x1024 | v3_tiled_vectorized | 2.4215 | 1773.7 | 11.3 | `bench_M4096_N512_K1024.json` |
-| 4096x512x1024 | v4_coarsened | 1.3183 | 3257.9 | 20.7 | `bench_M4096_N512_K1024.json` |
-| 4096x512x1024 | v5_regtile | 0.7750 | 5542.1 | 35.2 | `bench_M4096_N512_K1024.json` |
-| 4096x512x1024 | v6_vec_transposed | 0.5885 | 7298.4 | 46.3 | `bench_M4096_N512_K1024.json` |
-| 4096x512x1024 | cublas | 0.4493 | 9559.0 | 60.7 | `bench_M4096_N512_K1024.json` |
-| 512x1024x1024 | v0_naive | 1.6491 | 651.1 | 5.1 | `bench_M512_N1024_K1024.json` |
-| 512x1024x1024 | v1_coalesced | 1.6577 | 647.7 | 5.1 | `bench_M512_N1024_K1024.json` |
-| 512x1024x1024 | v2_tiled | 0.6071 | 1768.7 | 13.8 | `bench_M512_N1024_K1024.json` |
-| 512x1024x1024 | v3_tiled_vectorized | 0.6294 | 1705.9 | 13.3 | `bench_M512_N1024_K1024.json` |
-| 512x1024x1024 | v4_coarsened | 0.2910 | 3689.7 | 28.8 | `bench_M512_N1024_K1024.json` |
-| 512x1024x1024 | v5_regtile | 0.1953 | 5498.0 | 43.0 | `bench_M512_N1024_K1024.json` |
-| 512x1024x1024 | v6_vec_transposed | 0.1465 | 7329.5 | 57.3 | `bench_M512_N1024_K1024.json` |
-| 512x1024x1024 | cublas | 0.1124 | 9548.8 | 74.6 | `bench_M512_N1024_K1024.json` |
-| 512x4096x1024 | v0_naive | 5.0075 | 857.7 | 5.4 | `bench_M512_N4096_K1024.json` |
-| 512x4096x1024 | v1_coalesced | 5.6741 | 756.9 | 4.8 | `bench_M512_N4096_K1024.json` |
-| 512x4096x1024 | v2_tiled | 2.2637 | 1897.3 | 12.0 | `bench_M512_N4096_K1024.json` |
-| 512x4096x1024 | v3_tiled_vectorized | 2.4078 | 1783.7 | 11.3 | `bench_M512_N4096_K1024.json` |
-| 512x4096x1024 | v4_coarsened | 1.3141 | 3268.4 | 20.7 | `bench_M512_N4096_K1024.json` |
-| 512x4096x1024 | v5_regtile | 0.7714 | 5568.0 | 35.3 | `bench_M512_N4096_K1024.json` |
-| 512x4096x1024 | v6_vec_transposed | 0.5910 | 7266.8 | 46.1 | `bench_M512_N4096_K1024.json` |
-| 512x4096x1024 | cublas | 0.4559 | 9420.1 | 59.8 | `bench_M512_N4096_K1024.json` |
-| 512x512x512 | v0_naive | 0.3410 | 787.1 | 9.2 | `bench_M512_N512_K512.json` |
-| 512x512x512 | v1_coalesced | 0.2606 | 1029.9 | 12.1 | `bench_M512_N512_K512.json` |
-| 512x512x512 | v2_tiled | 0.1818 | 1476.3 | 17.3 | `bench_M512_N512_K512.json` |
-| 512x512x512 | v3_tiled_vectorized | 0.1781 | 1507.4 | 17.7 | `bench_M512_N512_K512.json` |
-| 512x512x512 | v4_coarsened | 0.0828 | 3240.1 | 38.0 | `bench_M512_N512_K512.json` |
-| 512x512x512 | v5_regtile | 0.0952 | 2819.7 | 33.0 | `bench_M512_N512_K512.json` |
-| 512x512x512 | v6_vec_transposed | 0.0796 | 3374.3 | 39.5 | `bench_M512_N512_K512.json` |
-| 512x512x512 | cublas | 0.0397 | 6759.6 | 79.2 | `bench_M512_N512_K512.json` |
+| 1024x1024x1024 | v0_naive | 2.6367 | 814.4 | 4.8 | `bench_M1024_N1024_K1024.json` |
+| 1024x1024x1024 | v1_coalesced | 2.2912 | 937.3 | 5.5 | `bench_M1024_N1024_K1024.json` |
+| 1024x1024x1024 | v2_tiled | 1.1295 | 1901.3 | 11.1 | `bench_M1024_N1024_K1024.json` |
+| 1024x1024x1024 | v3_tiled_vectorized | 1.3083 | 1641.4 | 9.6 | `bench_M1024_N1024_K1024.json` |
+| 1024x1024x1024 | v4_coarsened | 0.6397 | 3357.1 | 19.7 | `bench_M1024_N1024_K1024.json` |
+| 1024x1024x1024 | v5_regtile | 0.4248 | 5055.3 | 29.6 | `bench_M1024_N1024_K1024.json` |
+| 1024x1024x1024 | v6_vec_transposed | 0.3097 | 6934.2 | 40.6 | `bench_M1024_N1024_K1024.json` |
+| 1024x1024x1024 | cublas | 0.2128 | 10093.1 | 59.1 | `bench_M1024_N1024_K1024.json` |
+| 1024x1024x512 | v0_naive | 1.6134 | 665.5 | 5.2 | `bench_M1024_N1024_K512.json` |
+| 1024x1024x512 | v1_coalesced | 1.1591 | 926.3 | 7.2 | `bench_M1024_N1024_K512.json` |
+| 1024x1024x512 | v2_tiled | 0.5999 | 1790.0 | 14.0 | `bench_M1024_N1024_K512.json` |
+| 1024x1024x512 | v3_tiled_vectorized | 0.5962 | 1801.1 | 14.1 | `bench_M1024_N1024_K512.json` |
+| 1024x1024x512 | v4_coarsened | 0.2756 | 3896.2 | 30.4 | `bench_M1024_N1024_K512.json` |
+| 1024x1024x512 | v5_regtile | 0.2109 | 5090.2 | 39.8 | `bench_M1024_N1024_K512.json` |
+| 1024x1024x512 | v6_vec_transposed | 0.1685 | 6370.7 | 49.8 | `bench_M1024_N1024_K512.json` |
+| 1024x1024x512 | cublas | 0.1112 | 9656.0 | 75.4 | `bench_M1024_N1024_K512.json` |
+| 2048x2048x2048 | v0_naive | 23.8602 | 720.0 | 2.1 | `bench_M2048_N2048_K2048.json` |
+| 2048x2048x2048 | v1_coalesced | 22.2106 | 773.5 | 2.3 | `bench_M2048_N2048_K2048.json` |
+| 2048x2048x2048 | v2_tiled | 10.4853 | 1638.5 | 4.8 | `bench_M2048_N2048_K2048.json` |
+| 2048x2048x2048 | v3_tiled_vectorized | 11.0761 | 1551.1 | 4.5 | `bench_M2048_N2048_K2048.json` |
+| 2048x2048x2048 | v4_coarsened | 4.7135 | 3644.8 | 10.7 | `bench_M2048_N2048_K2048.json` |
+| 2048x2048x2048 | v5_regtile | 2.7826 | 6174.0 | 18.1 | `bench_M2048_N2048_K2048.json` |
+| 2048x2048x2048 | v6_vec_transposed | 2.2613 | 7597.3 | 22.3 | `bench_M2048_N2048_K2048.json` |
+| 2048x2048x2048 | cublas | 1.5808 | 10868.1 | 31.8 | `bench_M2048_N2048_K2048.json` |
+| 256x256x256 | v0_naive | 0.0725 | 462.5 | 10.8 | `bench_M256_N256_K256.json` |
+| 256x256x256 | v1_coalesced | 0.0344 | 974.5 | 22.8 | `bench_M256_N256_K256.json` |
+| 256x256x256 | v2_tiled | 0.0281 | 1194.3 | 28.0 | `bench_M256_N256_K256.json` |
+| 256x256x256 | v3_tiled_vectorized | 0.0282 | 1188.9 | 27.9 | `bench_M256_N256_K256.json` |
+| 256x256x256 | v4_coarsened | 0.0176 | 1903.0 | 44.6 | `bench_M256_N256_K256.json` |
+| 256x256x256 | v5_regtile | 0.0573 | 585.8 | 13.7 | `bench_M256_N256_K256.json` |
+| 256x256x256 | v6_vec_transposed | 0.0472 | 710.4 | 16.6 | `bench_M256_N256_K256.json` |
+| 256x256x256 | cublas | 0.0188 | 1783.3 | 41.8 | `bench_M256_N256_K256.json` |
+| 4096x4096x4096 | v0_naive | 408.7477 | 336.2 | 0.5 | `bench_M4096_N4096_K4096.json` |
+| 4096x4096x4096 | v1_coalesced | 314.9752 | 436.3 | 0.6 | `bench_M4096_N4096_K4096.json` |
+| 4096x4096x4096 | v2_tiled | 96.4199 | 1425.4 | 2.1 | `bench_M4096_N4096_K4096.json` |
+| 4096x4096x4096 | v3_tiled_vectorized | 98.6119 | 1393.7 | 2.0 | `bench_M4096_N4096_K4096.json` |
+| 4096x4096x4096 | v4_coarsened | 45.8335 | 2998.7 | 4.4 | `bench_M4096_N4096_K4096.json` |
+| 4096x4096x4096 | v5_regtile | 25.2083 | 5452.1 | 8.0 | `bench_M4096_N4096_K4096.json` |
+| 4096x4096x4096 | v6_vec_transposed | 22.6764 | 6060.9 | 8.9 | `bench_M4096_N4096_K4096.json` |
+| 4096x4096x4096 | cublas | 13.5843 | 10117.5 | 14.8 | `bench_M4096_N4096_K4096.json` |
+| 4096x512x1024 | v0_naive | 5.2595 | 816.6 | 5.2 | `bench_M4096_N512_K1024.json` |
+| 4096x512x1024 | v1_coalesced | 5.8387 | 735.6 | 4.7 | `bench_M4096_N512_K1024.json` |
+| 4096x512x1024 | v2_tiled | 2.2587 | 1901.5 | 12.1 | `bench_M4096_N512_K1024.json` |
+| 4096x512x1024 | v3_tiled_vectorized | 2.4696 | 1739.1 | 11.0 | `bench_M4096_N512_K1024.json` |
+| 4096x512x1024 | v4_coarsened | 1.3018 | 3299.3 | 20.9 | `bench_M4096_N512_K1024.json` |
+| 4096x512x1024 | v5_regtile | 0.7723 | 5561.6 | 35.3 | `bench_M4096_N512_K1024.json` |
+| 4096x512x1024 | v6_vec_transposed | 0.5849 | 7342.7 | 46.6 | `bench_M4096_N512_K1024.json` |
+| 4096x512x1024 | cublas | 0.4115 | 10438.5 | 66.3 | `bench_M4096_N512_K1024.json` |
+| 512x1024x1024 | v0_naive | 1.2835 | 836.6 | 6.5 | `bench_M512_N1024_K1024.json` |
+| 512x1024x1024 | v1_coalesced | 1.1547 | 929.9 | 7.3 | `bench_M512_N1024_K1024.json` |
+| 512x1024x1024 | v2_tiled | 0.6266 | 1713.5 | 13.4 | `bench_M512_N1024_K1024.json` |
+| 512x1024x1024 | v3_tiled_vectorized | 0.6154 | 1744.7 | 13.6 | `bench_M512_N1024_K1024.json` |
+| 512x1024x1024 | v4_coarsened | 0.2804 | 3829.5 | 29.9 | `bench_M512_N1024_K1024.json` |
+| 512x1024x1024 | v5_regtile | 0.1885 | 5695.9 | 44.5 | `bench_M512_N1024_K1024.json` |
+| 512x1024x1024 | v6_vec_transposed | 0.1487 | 7219.1 | 56.4 | `bench_M512_N1024_K1024.json` |
+| 512x1024x1024 | cublas | 0.1125 | 9543.4 | 74.6 | `bench_M512_N1024_K1024.json` |
+| 512x4096x1024 | v0_naive | 5.1474 | 834.4 | 5.3 | `bench_M512_N4096_K1024.json` |
+| 512x4096x1024 | v1_coalesced | 5.6516 | 760.0 | 4.8 | `bench_M512_N4096_K1024.json` |
+| 512x4096x1024 | v2_tiled | 2.2481 | 1910.5 | 12.1 | `bench_M512_N4096_K1024.json` |
+| 512x4096x1024 | v3_tiled_vectorized | 2.4204 | 1774.5 | 11.3 | `bench_M512_N4096_K1024.json` |
+| 512x4096x1024 | v4_coarsened | 1.2828 | 3348.0 | 21.3 | `bench_M512_N4096_K1024.json` |
+| 512x4096x1024 | v5_regtile | 0.7691 | 5584.5 | 35.4 | `bench_M512_N4096_K1024.json` |
+| 512x4096x1024 | v6_vec_transposed | 0.5955 | 7212.1 | 45.8 | `bench_M512_N4096_K1024.json` |
+| 512x4096x1024 | cublas | 0.4626 | 9285.2 | 58.9 | `bench_M512_N4096_K1024.json` |
+| 512x512x512 | v0_naive | 0.3394 | 790.9 | 9.3 | `bench_M512_N512_K512.json` |
+| 512x512x512 | v1_coalesced | 0.2621 | 1024.0 | 12.0 | `bench_M512_N512_K512.json` |
+| 512x512x512 | v2_tiled | 0.1813 | 1480.5 | 17.4 | `bench_M512_N512_K512.json` |
+| 512x512x512 | v3_tiled_vectorized | 0.1784 | 1504.4 | 17.6 | `bench_M512_N512_K512.json` |
+| 512x512x512 | v4_coarsened | 0.0817 | 3287.1 | 38.5 | `bench_M512_N512_K512.json` |
+| 512x512x512 | v5_regtile | 0.0946 | 2836.9 | 33.2 | `bench_M512_N512_K512.json` |
+| 512x512x512 | v6_vec_transposed | 0.0793 | 3386.6 | 39.7 | `bench_M512_N512_K512.json` |
+| 512x512x512 | cublas | 0.0395 | 6792.4 | 79.6 | `bench_M512_N512_K512.json` |
 <!-- RESULTS-END -->
 
 Plots: `results/plot_gflops.png` (median GFLOPS vs shape per kernel, generated by
@@ -156,19 +156,19 @@ any new bench run and commit the figure).
 ## Key lessons (measured — see `docs/WRITEUP.md` for evidence)
 
 - Occupancy + work-per-thread beat wider loads: `v4` (256-thread blocks, 2×2
-  outputs/thread) is 1.8× faster than `v2` at 1024³ (0.64 vs 1.12ms); `v3`'s
-  float4 loads never beat `v2` beyond noise (v3 1.31 vs v2 1.12ms at 1024³) —
+  outputs/thread) is 1.8× faster than `v2` at 1024³ (0.64 vs 1.13ms); `v3`'s
+  float4 loads never beat `v2` beyond noise (v3 1.31 vs v2 1.13ms at 1024³) —
   a recorded negative result.
 - Bigger tiles win big problems, starve small ones: `v5` (128-tile, 8×8/thread)
   is 1.5× faster than `v4` at 1024³ (0.425 vs 0.64ms) but loses at 512³ and below
-  (0.32× at 256³ — 4 blocks can't fill the GPU).
+  (0.31× at 256³ — 4 blocks can't fill the GPU).
 - Layout + vectors stack on top: `v6` (float4 fills, transposed A tile) is 1.4×
-  faster than `v5` on every shape including 256³ (0.306 vs 0.425ms at 1024³,
-  67% of cuBLAS) —
+  faster than `v5` on every shape including 256³ (0.310 vs 0.425ms at 1024³,
+  69% of cuBLAS) —
   shared-memory layout was second-order, but not zero.
 - The vendor baseline earned its place twice: it caught our wrong-math OP_T
   emulation (fixed to OP_N, validated value-by-value), and it leads the best
-  custom kernel 1.5× at 1024³ (10456 vs 7026 GFLOPS).
+  custom kernel 1.5× at 1024³ (10093 vs 6934 GFLOPS).
 - Protocol before speed: `cudaEvent` kernel-only timing, warmup plus timed iters,
   median/min/p95, identical inputs, JSON evidence with environment metadata,
   repeat runs with a scripted >5% drift check (`scripts/check_repeat.py`).

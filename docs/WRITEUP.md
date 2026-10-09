@@ -29,11 +29,12 @@ Justification: float dot-product error grows ~`K·eps` (`eps ≈ 1.2e-7`); for
 covers large magnitudes, the absolute floor covers small ones — each with a
 dedicated shape (1e9–1e10 and 1e-11–1e-10 ranges).
 
-Gate (`tests/correctness.cu`, seed 1234): 18 shapes × (6 kernels + cuBLAS) =
-126 checks — size-1, row/col vectors, small primes (7×13×5), non-multiples
+Gate (`tests/correctness.cu`, seed 1234): 20 shapes × (7 kernels + cuBLAS) =
+160 checks — size-1, row/col vectors, small primes (7×13×5), non-multiples
 (31×33×17, 100×97×63), tile-aligned 64³, rect-large-K, 512³, large-odd
 1023×513×257, v5 tile-stress shapes (non-multiples of 128/8, K = 1/7/9/129,
-just-over-128 edges), plus both magnitude extremes. Result
+just-over-128 edges), v6 vector-path shapes (128³ full-fast, 200³ mixed),
+plus both magnitude extremes. Result
 (`results/correctness_seed1234.json`, `bad=0`):
 
 | Shape class | Worst abs err (all 5 kernels agree) |
@@ -80,8 +81,8 @@ times, each `A` element N times).
 `v1` (`v1_coalesced.cu`) changes only the mapping: flattened 1D grid,
 `__restrict__`, stores to contiguous `C[tid]`. A-row reads stay per-thread
 private; the win, if any, comes from fully coalesced C stores and friendlier
-compiler vectorization of the A stream. Measured: 2.0× at 256³ (0.0724→0.0356 ms), shrinking to 1.10× at 1024³
-(2.4800→2.2563 ms) — mapping overhead matters most where kernels are short.
+compiler vectorization of the A stream. Measured: 2.1× at 256³ (0.0725→0.0344 ms), shrinking to 1.15× at 1024³
+(2.6367→2.2912 ms) — mapping overhead matters most where kernels are short.
 The hypothesis held; magnitude varies by shape (`results/bench_*.json`).
 Profiler evidence for this step: NOT RUN (see §13).
 
@@ -125,12 +126,12 @@ are covered by the awkward-shape gate.
 algorithm but launches 16×16 = 256 threads, each accumulating a 2×2 micro-tile
 in registers (4× the work per thread; A-row/B-column elements reused across the
 micro-tile; 4× more blocks eligible for concurrent residency). Tile fill is
-cooperative (256 threads × 4 elements). Result at 1024³ (reported run N): **0.64ms vs v2's
-1.12ms — 1.8× faster** (3281 vs 1904 GFLOPS); 512³: 2.2× (0.0828 vs 0.1852ms);
-rect shapes ≈ 2.2× (2.22× / 2.09×). The occupancy/work-per-thread hypothesis is confirmed by
+cooperative (256 threads × 4 elements). Result at 1024³ (reported run V): **0.64ms vs v2's
+1.13ms — 1.8× faster** (3357 vs 1901 GFLOPS); 512³: 2.2× (0.0817 vs 0.1813ms);
+rect shapes ≈ 2.2× (2.18× / 2.24×). The occupancy/work-per-thread hypothesis is confirmed by
 measurement: the 1024-thread blocks were the binding constraint, not load width
-(§6). v4 reaches 25% of the estimated 13.13 TFLOPS FP32 peak; cuBLAS still leads
-3.2× (10456 GFLOPS) — the remaining gap is the vendor library's territory
+(§6). v4 reaches 33% of cuBLAS; cuBLAS still leads
+3.0× (10093 GFLOPS) — the remaining gap is the vendor library's territory
 (tensor cores, swizzling, per-shape tuning), stated as future work, not failure.
 Profiler evidence for this step: NOT RUN (see §13).
 
@@ -142,12 +143,12 @@ fragments). Fill efficiency 64 MAC/float vs v4's 16 (4x). Scalar shared
 loads, no swizzle: any bank-conflict cost stays in this measurement so v6
 (layout change) can isolate it.
 
-Result (reported run N) at 1024^3: 0.4251ms vs v4 0.6391 (1.5x; 5052 vs 3360
-GFLOPS); K512: 1.32x (0.2053 vs 0.2708); rect: 1.49x (0.1953 vs 0.2910). v5
-reaches 38% of the estimated peak; cuBLAS leads 2.1x (10456 GFLOPS, 80%).
+Result (reported run V) at 1024^3: 0.4248ms vs v4 0.6397 (1.5x; 5055 vs 3357
+GFLOPS); K512: 1.28x (0.2109 vs 0.2708); rect: 1.49x (0.1885 vs 0.2804). v5
+reaches 50% of cuBLAS; cuBLAS leads 2.0x (10093 GFLOPS).
 
-Crossover, stated plainly: v5 LOSES on small problems — 512^3: 0.0952 vs
-0.0828 (0.87x); 256^3: 0.0558 vs 0.0177 (0.32x). A 128-wide tile on a
+Crossover, stated plainly: v5 LOSES on small problems — 512^3: 0.0946 vs
+0.0817 (0.86x); 256^3: 0.0573 vs 0.0176 (0.31x). A 128-wide tile on a
 256-wide problem launches 4 blocks (1024 threads): the big tile starves
 parallelism where v4's 32-wide tiles fill the machine. Tile size is a bet on
 problem size; the ladder now shows both sides of it.
@@ -169,13 +170,13 @@ both ty-groups on the same bank at different addresses (2-way conflict on
 every A-fragment load). Scalar fallback fills the same transposed layout on
 edge/misaligned tiles; the fast-path decision is tile-level and block-uniform.
 
-Result (reported run N) at 1024^3: 0.3057ms vs v5 0.4251 (1.4x; 7026 vs 5052
-GFLOPS); K512: 1.26x (0.1632 vs 0.2053); rect: 1.33x (0.1465 vs 0.1953);
-512^3: 1.20x (0.0796 vs 0.0952); even 256^3: 1.19x (0.0470 vs 0.0558). v6
-reaches 54% of the estimated peak; cuBLAS leads 1.5x (10456 GFLOPS, 80%).
+Result (reported run V) at 1024^3: 0.3097ms vs v5 0.4248 (1.4x; 6934 vs 5055
+GFLOPS); K512: 1.25x (0.1685 vs 0.2109); rect: 1.27x (0.1487 vs 0.1885);
+512^3: 1.19x (0.0793 vs 0.0946); even 256^3: 1.21x (0.0472 vs 0.0573). v6
+reaches 69% of cuBLAS; cuBLAS leads 1.5x (10093 GFLOPS).
 
 What this decides: layout was NOT zero — the transposed A tile plus vector
-fill is worth a consistent ~1.2-1.4x across all nine shapes, including the
+fill is worth a consistent ~1.1-1.4x across all nine shapes, including the
 4-block 256^3 launch where v5 starved (v6's cheaper fill helps exactly
 where parallelism is scarcest). v3's failure was being vector-only without
 register intensity; v6 has both. Remaining gap to cuBLAS (1.4x) is now in
@@ -223,32 +224,35 @@ Reported run: G (`results/bench_*.json`); table via
 
 | Shape | v0 | v1 | v2 | v3 | v4 | v5 | v6 | cuBLAS |
 |---|---|---|---|---|---|---|---|---|
-| 256³ | 0.0729 | 0.0356 | 0.0277 | 0.0287 | 0.0180 | 0.0558 | 0.0470 | 0.0205 |
-| 512³ | 0.3410 | 0.2606 | 0.1818 | 0.1781 | 0.0828 | 0.0952 | 0.0796 | 0.0397 |
-| 1024³ | 2.4838 | 2.2709 | 1.1202 | 1.3113 | 0.6391 | 0.4251 | 0.3057 | 0.2054 |
-| 1024×1024×512 | 1.6116 | 1.1558 | 0.6020 | 0.5946 | 0.2708 | 0.2053 | 0.1632 | 0.1101 |
-| 512×1024×1024 | 1.6491 | 1.6577 | 0.6071 | 0.6294 | 0.2910 | 0.1953 | 0.1465 | 0.1124 |
-| 2048x2048x2048 | 22.6952 | 22.1483 | 9.8460 | 10.5478 | 4.6571 | 2.7927 | 2.2547 | 1.5441 |
-| 4096x4096x4096 | 405.2236 | 307.1506 | 96.1345 | 98.0207 | 45.8339 | 25.2631 | 22.4809 | 13.6699 |
-| 4096x512x1024 | 5.2393 | 5.7410 | 2.2510 | 2.4215 | 1.3183 | 0.7750 | 0.5885 | 0.4493 |
-| 512x4096x1024 | 5.0075 | 5.6741 | 2.2637 | 2.4078 | 1.3141 | 0.7714 | 0.5910 | 0.4559 |
+| 256³ | 0.0725 | 0.0344 | 0.0281 | 0.0282 | 0.0176 | 0.0573 | 0.0472 | 0.0188 |
+| 512³ | 0.3394 | 0.2621 | 0.1813 | 0.1784 | 0.0817 | 0.0946 | 0.0793 | 0.0395 |
+| 1024³ | 2.6367 | 2.2912 | 1.1295 | 1.3083 | 0.6397 | 0.4248 | 0.3097 | 0.2128 |
+| 1024×1024×512 | 1.6134 | 1.1591 | 0.5999 | 0.5962 | 0.2756 | 0.2109 | 0.1685 | 0.1112 |
+| 512×1024×1024 | 1.2835 | 1.1547 | 0.6266 | 0.6154 | 0.2804 | 0.1885 | 0.1487 | 0.1125 |
+| 2048x2048x2048 | 23.8602 | 22.2106 | 10.4853 | 11.0761 | 4.7135 | 2.7826 | 2.2613 | 1.5808 |
+| 4096x4096x4096 | 408.7477 | 314.9752 | 96.4199 | 98.6119 | 45.8335 | 25.2083 | 22.6764 | 13.5843 |
+| 4096x512x1024 | 5.2595 | 5.8387 | 2.2587 | 2.4696 | 1.3018 | 0.7723 | 0.5849 | 0.4115 |
+| 512x4096x1024 | 5.1474 | 5.6516 | 2.2481 | 2.4204 | 1.2828 | 0.7691 | 0.5955 | 0.4626 |
 
-GFLOPS (1024³): v0 865 → v1 952 → v2 1904 → v3 1707 → v4 3281 →
-**v5 5243** → **v6 7026** → cuBLAS 9699
-(74% of the 13.13 TFLOPS estimated peak: 36 SMs × 128 cores × 2 FMA ×
-1.425 GHz reported clock — an estimate, re-verify cores/SM against the whitepaper
-before citing elsewhere; observed boost reached 2730 MHz, so the estimate is
-likely understated, see §13). Findings: v0→v1 helps most at small shapes (2.0× at 256³,
-1.09× at 1024³ — mapping overhead vs memory); v1→v2 ≈ 1.3–2.0× (reuse);
-v2→v3 never a gain in any run (v3 slower on 7/9 shapes here: 1.31 vs 1.12 ms
-at 1024³; negative result, §14); v2→v4 ≈ 1.5–2.2×
+GFLOPS (1024³): v0 814 → v1 937 → v2 1901 → v3 1641 → v4 3357 →
+**v5 5055** → **v6 6934** → cuBLAS 10093.
+(Analytical note, not a claim: 13.13 TFLOPS is an estimate from the
+driver-reported 1425 MHz SM clock (36 SMs × 128 FP32 cores × 2 FMA — cores/SM
+re-verify per whitepaper). Read-only clock samples in the committed JSONs show
+real boost far above that: max observed 2730 MHz (tall-skinny run), for an
+implied 25.16 TFLOPS by the same formula, and 2505 MHz on the 1024³ run (23.09
+TFLOPS implied). Headline comparisons therefore use percent of cuBLAS, a
+measured baseline, instead of percent of this estimate. Findings: v0→v1 helps most at small shapes (2.1× at 256³,
+1.15× at 1024³ — mapping overhead vs memory); v1→v2 ≈ 1.2–3.3× (reuse; widest at 4096³ where the 1D mapping collapses);
+v2→v3 never a gain in any run (v3 slower on 6/9 shapes here: 1.31 vs 1.13 ms
+at 1024³; negative result, §14); v2→v4 ≈ 1.6–2.2×
 (occupancy); v4→v5 ≈ 1.3–1.8× at 1024²-scale and above, negative below 512³
-(tile-size crossover, §8); v5→v6 ≈ 1.2–1.4× on every shape including 256³
-(layout + vector fill help even 4-block launches); cuBLAS leads v6 1.3–2.3×;
-at 256³ v4 still beats cuBLAS 1.2× while tile-starved v5 trails
+(tile-size crossover, §8); v5→v6 ≈ 1.1–1.4× on every shape including 256³
+(layout + vector fill help even 4-block launches); cuBLAS leads v6 1.3–2.5×;
+at 256³ v4 still beats cuBLAS 1.1× while tile-starved v5 trails
 (launch/parallelism regime — the ranking itself is size-dependent).
-Repeatability: runs F/G/H/I/J/K/L/M/N adjudicated per cell (see §13); prior D/E/C
-values retained in LOG.md. v3 beats v2 only at 512³ (2%) and K512 (1%) —
+Repeatability: runs F/G/H/I/J/K/L/M/N/U/V adjudicated per cell (see §13); prior D/E/C
+values retained in LOG.md. v3 beats v2 at 512³ (2%), K512 (1%) and rect (2%) —
 within noise in every session.
 
 ## 13. Profiler evidence (NOT RUN — blocked, with evidence)
@@ -258,9 +262,15 @@ shape): `ERR_NVGPUCTRPERM` — no permission to access GPU performance counters
 on this WDDM device. Enabling counters needs admin/developer-mode action (out
 of scope). Attempt log:
 `results/ncu/ncu_smoke_M256_attempt.log`. Re-tested after counters were
-enabled: STILL blocked — even `ncu --query-metrics` fails
-(`results/ncu/query_metrics_ERR_NVGPUCTRPERM.log`), so no metric name in the
-installed version can be exercised here; `results/ncu/list_sections_2025.3.1.log`
+enabled: collection STILL blocked — any counter access returns
+`ERR_NVGPUCTRPERM` (`results/ncu/query_metrics_ERR_NVGPUCTRPERM.log`).
+Metric *listing*, which needs no counter permission, does work:
+`results/ncu/query_metrics_2025.3.1.txt` is the full installed-version
+metric inventory — it confirms the `run_ncu.sh` sample names
+(`sm__throughput`, `dram__throughput`) and the `SpeedOfLight` /
+`MemoryWorkloadAnalysis` sections exist in ncu 2025.3.1, so the
+name-confirmation rule is satisfied even though no counter value can be
+collected here; `results/ncu/list_sections_2025.3.1.log`
 records the section inventory only. `scripts/run_ncu.sh` was NOT run (same
 root cause, no data possible). Full per-version metric plan
 (DRAM transactions, coalescing efficiency, bank conflicts, occupancy) is kept
@@ -296,6 +306,32 @@ distributions in LOG.md): K512-v0 reads 1.25 (D/E/F, 87–94% of iters near the
 the slow mode is burst contamination shifting the median, not a machine-state
 change (floors agree across all clock states). Reported run N (fewest
 severely-disturbed cells); F–P medians disclosed here and in LOG.md.
+Provenance note: the retained N/O JSONs record `--use_fast_math` in
+`compile_flags` (pre-default-change build at `a2e6c0a`); Q/U/V record the
+strict-IEEE default (build at `6d9dbb0`, no semantic kernel change —
+only the verified-neutral clang-format pass between the two commits).
+Strict-math session (runs U/V at 9 shapes, plus 4-shape run Q, all strict):
+U-vs-V drift flagged 8 cells, worst drift 32.2% (K512 v1: U 1.7105 vs V
+1.1591 — U the burst outlier; N/O history 1.1558/1.1603 sides with V).
+Per-cell adjudication against N/O history: V matches the multi-run majority
+on 7 of 8 (1024³ v6 V 0.3097 with N 0.3057/O 0.3008; tall-skinny cublas V
+0.4115 with O 0.3966; 2048 v2/v3 inside the 9.4–11.1 strict-session spread;
+256³ pair at microsecond absolute noise). The 8th cell (rect 512×1024×1024
+v0, drift 21.9%) is bimodal across sessions — N/U near 1.64–1.65 vs O/V
+near 1.28, both modes disclosed here; reported run V takes the O-side mode.
+Fast-math control (`scripts/compare_runs.py`, fast-math N/O vs strict V,
+72 cells): 8 cells above the 5% drift limit, every one coinciding with a
+cell already unstable across strict-only sessions (the two largest, rect
+v0/v1 at drift 22.2%/30.4%, are the N-side burst modes above); v4/v5/v6
+move within noise on all 9 shapes. Verdict: the flag's effect is
+indistinguishable from WDDM session noise on this workload — strict IEEE
+stays the default and every committed number is now a strict-math
+measurement (`compile_flags` in each JSON). Residual gap, stated plainly:
+the full correctness + sanitizer gates were last run on the fast-math
+binary; a strict-binary re-run is NOT RUN (GPU execution stopped by policy
+(no admin or device changes) after the `nvidia-smi` permission failure) — when
+unblocked: `build/kern_correctness --seed 1234` plus
+`scripts/run_sanitizer.sh`.
 
 ## 14. Failed experiments and negative results
 
@@ -311,11 +347,11 @@ numbers and kept reproducible — never deleted, never re-timed until attractive
 
 Single data point (RTX 5070 Laptop, Blackwell sm_120, WDDM display-attached, driver
 617.14, CUDA 13.0): the ladder ranks v0 < v1 < v2 ≈ v3 < v4 < v5 < v6 < cuBLAS
-at 1024²-scale and above, with v6 at 54% and cuBLAS at 80% of estimated FP32
-peak at 1024³. At 256³ the ranking inverts for the big tiles (v5/v6 trail v4
-3.2×/2.7×) while v4 still beats cuBLAS 1.2× — tile size is a bet on problem size.
+at 1024²-scale and above, with v6 at 69% of cuBLAS
+at 1024³. At 256³ the ranking inverts for the big tiles (v5/v6 trail v4
+3.2×/2.7×) while v4 still beats cuBLAS 1.1× — tile size is a bet on problem size.
 Scaling to 4096³ (64× the FLOPs of 1024³): v6 slows 73× (near-linear),
-cuBLAS 67×, but v0 slows 163× (405 vs 2.48 ms) — the no-reuse kernel falls off
+cuBLAS 64×, but v0 slows 155× (409 vs 2.64 ms) — the no-reuse kernel falls off
 a cache cliff (L2-sized working sets stop fitting) while tiled kernels and
 cuBLAS ride linear scaling. No conclusion is generalized to other architectures without
 re-running; the `-DKERN_CUDA_ARCH` flag and `tools/detect_arch.py` exist for that.
@@ -351,7 +387,7 @@ re-running; the `-DKERN_CUDA_ARCH` flag and `tools/detect_arch.py` exist for tha
   passes): a 4096-wide FFN up-projection at 512 tokens (M=512,N=4096,K=4096)
   needs 17.18 GFLOP at AI=204.8 FLOP/B — the same compute-leaning regime as the
   measured shapes (AI 128–171), where the v4 occupancy win applies; nearest
-  measured point (512×1024×1024, v6 7078 GFLOPS) implies ≥34.6 GB/s ideal
+  measured point (512×1024×1024, v6 7219 GFLOPS) implies ≥35.2 GB/s ideal
   traffic. An attention QKV case (M=2048,N=4096,K=1024, AI=292.6) sits even
   further toward compute-bound. These are analytical placements against
   measured references (extrapolation, labeled as such) — they motivate which

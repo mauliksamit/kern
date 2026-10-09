@@ -1,8 +1,8 @@
 # Negative results (keep every miss)
 
 Status 2026-10-09: GPU experiments HAVE been run on this machine (RTX 5070,
-sm_120; correctness 72/72, bench runs D/E + run C, sanitizer 4/4 clean — see
-`LOG.md`, `results/`). Entries 1–3 below were **design-stage rejections**
+sm_120; correctness 160/160, bench runs with drift adjudication, sanitizer
+4/4 clean - see `LOG.md`, `results/`). Entries 1–3 below were **design-stage rejections**
 (never run, kept as decisions); entry 5 is a **measured** miss. Append new
 measured misses here with the reason.
 
@@ -40,9 +40,12 @@ measured misses here with the reason.
    K512: 0.5909 vs 0.5931; rect: 0.6142 vs 0.6090. Same verdict, sixth time.
    Re-verified on run N (9 shapes): v3 slower on 7/9 (worst +17% at 1024^3);
    wins only at 512^3 (2%) and K512 (1%). Same verdict, seventh time.
+   Re-verified on runs U/V (reported V): v3 slower on 6/9 (worst +16% at 1024^3);
+   wins only at 512^3 (2%), K512 (1%) and rect (2%). Same verdict, eighth time.
 
 6. **v7 warp-level tiling — SKIPPED with reason (not a failure).** v6 gained a
-   consistent 1.2–1.4x and sits at 73% of cuBLAS; the remaining gap is vendor
+   consistent 1.2–1.4x and sits at 73% of cuBLAS (run M era; 69% on reported
+   run V) — the remaining gap is vendor
    territory (tensor cores, swizzling, async copies) that warp tiling alone
    cannot take — and without `ncu` counters the warp-level effects would be
    unverifiable tuning in the dark. Parked until profiler access or a new
