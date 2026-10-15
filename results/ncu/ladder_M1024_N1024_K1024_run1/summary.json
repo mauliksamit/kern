@@ -1,0 +1,188 @@
+{
+  "source_dir": "results/ncu/ladder_M1024_N1024_K1024_run1",
+  "git_commit": "6eacd9a33526a3ceb58b83e83a7cdbb86fae6136",
+  "ncu_version": "Version 2025.3.1.0 (build 36398880) (public-release)",
+  "gpu": "NVIDIA GeForce RTX 5070 Laptop GPU, 617.14, 12.0",
+  "shape": {
+    "M": 1024,
+    "N": 1024,
+    "K": 1024
+  },
+  "kernels": {
+    "v2_tiled": {
+      "kernel_name": "unnamed>::v2_kernel(const float *, const float *, float *, int, int, int)",
+      "metrics": {
+        "launch__block_size": 1024.0,
+        "launch__grid_size": 1024.0,
+        "launch__registers_per_thread": 38.0,
+        "launch__shared_mem_per_block_static": 8192.0,
+        "launch__shared_mem_per_block_dynamic": 0.0,
+        "launch__occupancy_limit_registers": 1.0,
+        "launch__occupancy_limit_shared_mem": 1.0,
+        "launch__occupancy_limit_warps": 1.0,
+        "sm__maximum_warps_per_active_cycle_pct": 66.67,
+        "sm__warps_active.avg.pct_of_peak_sustained_active": 66.64,
+        "launch__waves_per_multiprocessor": 28.44,
+        "smsp__inst_executed.sum": 99942400.0,
+        "smsp__sass_thread_inst_executed_op_ffma_pred_on.sum": 1073741824.0,
+        "sm__pipe_fma_cycles_active.avg.pct_of_peak_sustained_active": 8.67,
+        "sm__throughput.avg.pct_of_peak_sustained_elapsed": 82.76,
+        "smsp__sass_inst_executed_op_shared_ld.sum": 41943040.0,
+        "l1tex__data_pipe_lsu_wavefronts_mem_shared_op_ld.sum": 50331648.0,
+        "l1tex__data_bank_conflicts_pipe_lsu_mem_shared_op_ld.sum": 0.0,
+        "smsp__sass_inst_executed_op_shared_st.sum": 2097152.0,
+        "l1tex__data_pipe_lsu_wavefronts_mem_shared_op_st.sum": 2732439.0,
+        "l1tex__data_bank_conflicts_pipe_lsu_mem_shared_op_st.sum": 635287.0,
+        "dram__bytes_op_read.sum": 17521664.0,
+        "dram__bytes_op_write.sum": 0.0,
+        "lts__t_bytes.sum": 281799520.0,
+        "gpu__time_duration.sum": 1150304.0
+      },
+      "derived": {
+        "shared_ld_wavefronts_per_inst": 1.2,
+        "shared_st_wavefronts_per_inst": 1.303,
+        "ffma_thread_inst_over_MNK": 1.0
+      }
+    },
+    "v4_coarsened": {
+      "kernel_name": "unnamed>::v4_kernel(const float *, const float *, float *, int, int, int)",
+      "metrics": {
+        "launch__block_size": 256.0,
+        "launch__grid_size": 1024.0,
+        "launch__registers_per_thread": 56.0,
+        "launch__shared_mem_per_block_static": 8192.0,
+        "launch__shared_mem_per_block_dynamic": 0.0,
+        "launch__occupancy_limit_registers": 4.0,
+        "launch__occupancy_limit_shared_mem": 11.0,
+        "launch__occupancy_limit_warps": 6.0,
+        "sm__maximum_warps_per_active_cycle_pct": 66.67,
+        "sm__warps_active.avg.pct_of_peak_sustained_active": 63.56,
+        "launch__waves_per_multiprocessor": 7.11,
+        "smsp__inst_executed.sum": 74686464.0,
+        "smsp__sass_thread_inst_executed_op_ffma_pred_on.sum": 1073741824.0,
+        "sm__pipe_fma_cycles_active.avg.pct_of_peak_sustained_active": 20.91,
+        "sm__throughput.avg.pct_of_peak_sustained_elapsed": 71.1,
+        "smsp__sass_inst_executed_op_shared_ld.sum": 12582912.0,
+        "l1tex__data_pipe_lsu_wavefronts_mem_shared_op_ld.sum": 25182879.0,
+        "l1tex__data_bank_conflicts_pipe_lsu_mem_shared_op_ld.sum": 17055.0,
+        "smsp__sass_inst_executed_op_shared_st.sum": 2097152.0,
+        "l1tex__data_pipe_lsu_wavefronts_mem_shared_op_st.sum": 8615535.0,
+        "l1tex__data_bank_conflicts_pipe_lsu_mem_shared_op_st.sum": 6518383.0,
+        "dram__bytes_op_read.sum": 8400896.0,
+        "dram__bytes_op_write.sum": 0.0,
+        "lts__t_bytes.sum": 285482208.0,
+        "gpu__time_duration.sum": 526816.0
+      },
+      "derived": {
+        "shared_ld_wavefronts_per_inst": 2.001,
+        "shared_st_wavefronts_per_inst": 4.108,
+        "ffma_thread_inst_over_MNK": 1.0
+      }
+    },
+    "v5_regtile": {
+      "kernel_name": "unnamed>::v5_kernel(const float *, const float *, float *, int, int, int)",
+      "metrics": {
+        "launch__block_size": 256.0,
+        "launch__grid_size": 64.0,
+        "launch__registers_per_thread": 168.0,
+        "launch__shared_mem_per_block_static": 8192.0,
+        "launch__shared_mem_per_block_dynamic": 0.0,
+        "launch__occupancy_limit_registers": 1.0,
+        "launch__occupancy_limit_shared_mem": 1.0,
+        "launch__occupancy_limit_warps": 6.0,
+        "sm__maximum_warps_per_active_cycle_pct": 16.67,
+        "sm__warps_active.avg.pct_of_peak_sustained_active": 16.4,
+        "launch__waves_per_multiprocessor": 1.78,
+        "smsp__inst_executed.sum": 42288640.0,
+        "smsp__sass_thread_inst_executed_op_ffma_pred_on.sum": 1073741824.0,
+        "sm__pipe_fma_cycles_active.avg.pct_of_peak_sustained_active": 28.5,
+        "sm__throughput.avg.pct_of_peak_sustained_elapsed": 28.93,
+        "smsp__sass_inst_executed_op_shared_ld.sum": 2097152.0,
+        "l1tex__data_pipe_lsu_wavefronts_mem_shared_op_ld.sum": 10485760.0,
+        "l1tex__data_bank_conflicts_pipe_lsu_mem_shared_op_ld.sum": 4194304.0,
+        "smsp__sass_inst_executed_op_shared_st.sum": 524288.0,
+        "l1tex__data_pipe_lsu_wavefronts_mem_shared_op_st.sum": 2110919.0,
+        "l1tex__data_bank_conflicts_pipe_lsu_mem_shared_op_st.sum": 1586631.0,
+        "dram__bytes_op_read.sum": 10074624.0,
+        "dram__bytes_op_write.sum": 0.0,
+        "lts__t_bytes.sum": 102352096.0,
+        "gpu__time_duration.sum": 381248.0
+      },
+      "derived": {
+        "shared_ld_wavefronts_per_inst": 5.0,
+        "shared_st_wavefronts_per_inst": 4.026,
+        "ffma_thread_inst_over_MNK": 1.0
+      }
+    },
+    "v6_vec_transposed": {
+      "kernel_name": "unnamed>::v6_kernel(const float *, const float *, float *, int, int, int)",
+      "metrics": {
+        "launch__block_size": 256.0,
+        "launch__grid_size": 64.0,
+        "launch__registers_per_thread": 138.0,
+        "launch__shared_mem_per_block_static": 8192.0,
+        "launch__shared_mem_per_block_dynamic": 0.0,
+        "launch__occupancy_limit_registers": 1.0,
+        "launch__occupancy_limit_shared_mem": 1.0,
+        "launch__occupancy_limit_warps": 6.0,
+        "sm__maximum_warps_per_active_cycle_pct": 16.67,
+        "sm__warps_active.avg.pct_of_peak_sustained_active": 16.16,
+        "launch__waves_per_multiprocessor": 1.78,
+        "smsp__inst_executed.sum": 38950912.0,
+        "smsp__sass_thread_inst_executed_op_ffma_pred_on.sum": 1073741824.0,
+        "sm__pipe_fma_cycles_active.avg.pct_of_peak_sustained_active": 34.0,
+        "sm__throughput.avg.pct_of_peak_sustained_elapsed": 32.27,
+        "smsp__sass_inst_executed_op_shared_ld.sum": 2097152.0,
+        "l1tex__data_pipe_lsu_wavefronts_mem_shared_op_ld.sum": 10485760.0,
+        "l1tex__data_bank_conflicts_pipe_lsu_mem_shared_op_ld.sum": 4194304.0,
+        "smsp__sass_inst_executed_op_shared_st.sum": 327680.0,
+        "l1tex__data_pipe_lsu_wavefronts_mem_shared_op_st.sum": 803676.0,
+        "l1tex__data_bank_conflicts_pipe_lsu_mem_shared_op_st.sum": 279388.0,
+        "dram__bytes_op_read.sum": 9293312.0,
+        "dram__bytes_op_write.sum": 256.0,
+        "lts__t_bytes.sum": 101446912.0,
+        "gpu__time_duration.sum": 322496.0
+      },
+      "derived": {
+        "shared_ld_wavefronts_per_inst": 5.0,
+        "shared_st_wavefronts_per_inst": 2.453,
+        "ffma_thread_inst_over_MNK": 1.0
+      }
+    },
+    "cublas": {
+      "kernel_name": "void Kernel2<cutlass_80_simt_sgemm_128x64_8x5_nn_align1>(Params)",
+      "metrics": {
+        "launch__block_size": 128.0,
+        "launch__grid_size": 384.0,
+        "launch__registers_per_thread": 128.0,
+        "launch__shared_mem_per_block_static": 0.0,
+        "launch__shared_mem_per_block_dynamic": 30720.0,
+        "launch__occupancy_limit_registers": 4.0,
+        "launch__occupancy_limit_shared_mem": 3.0,
+        "launch__occupancy_limit_warps": 12.0,
+        "sm__maximum_warps_per_active_cycle_pct": 25.0,
+        "sm__warps_active.avg.pct_of_peak_sustained_active": 23.5,
+        "launch__waves_per_multiprocessor": 3.56,
+        "smsp__inst_executed.sum": 42681600.0,
+        "smsp__sass_thread_inst_executed_op_ffma_pred_on.sum": 1075838976.0,
+        "sm__pipe_fma_cycles_active.avg.pct_of_peak_sustained_active": 60.34,
+        "sm__throughput.avg.pct_of_peak_sustained_elapsed": 70.59,
+        "smsp__sass_inst_executed_op_shared_ld.sum": 2201600.0,
+        "l1tex__data_pipe_lsu_wavefronts_mem_shared_op_ld.sum": 4321041.0,
+        "l1tex__data_bank_conflicts_pipe_lsu_mem_shared_op_ld.sum": 16145.0,
+        "smsp__sass_inst_executed_op_shared_st.sum": 98304.0,
+        "l1tex__data_pipe_lsu_wavefronts_mem_shared_op_st.sum": 112352.0,
+        "l1tex__data_bank_conflicts_pipe_lsu_mem_shared_op_st.sum": 14048.0,
+        "dram__bytes_op_read.sum": 8437760.0,
+        "dram__bytes_op_write.sum": 3730432.0,
+        "lts__t_bytes.sum": 125183904.0,
+        "gpu__time_duration.sum": 177952.0
+      },
+      "derived": {
+        "shared_ld_wavefronts_per_inst": 1.963,
+        "shared_st_wavefronts_per_inst": 1.143,
+        "ffma_thread_inst_over_MNK": 1.002
+      }
+    }
+  }
+}

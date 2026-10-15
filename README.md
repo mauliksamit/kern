@@ -12,9 +12,10 @@ Status: **measured on RTX 5070 (sm_120), 2026-10-09.** Correctness gate ALL PASS
 clean (memcheck/racecheck/synccheck/initcheck), both re-run 2026-10-15 on the
 default strict-IEEE build (`KERN_FAST_MATH=OFF`, no `--use_fast_math`; commit,
 flags and binary SHA-256 in each `results/sanitizer/*.log` header), bench run twice
-with drift check + adjudicating runs. Profiler counters are blocked on this
-WDDM machine (`ERR_NVGPUCTRPERM`, evidence in `results/ncu/`), so performance
-claims rest on `cudaEvent` timing plus labeled analytical reasoning.
+with drift check + adjudicating runs. Speed claims rest on `cudaEvent`
+timing; mechanism claims rest on a per-kernel Nsight Compute profile at 1024³
+(v2/v4/v5/v6/cuBLAS, 2026-10-15, `results/ncu/ladder_M1024_N1024_K1024/summary.md`), which
+overturned two of our own earlier explanations (see Key lessons).
 
 ## Hardware used
 
@@ -157,20 +158,26 @@ any new bench run and commit the figure).
 
 ## Key lessons (measured — see `docs/WRITEUP.md` for evidence)
 
-- Occupancy + work-per-thread beat wider loads: `v4` (256-thread blocks, 2×2
-  outputs/thread) is 1.8× faster than `v2` at 1024³ (0.64 vs 1.13ms); `v3`'s
-  float4 loads never beat `v2` beyond noise (v3 1.31 vs v2 1.13ms at 1024³) —
-  a recorded negative result.
+- Work per instruction, not occupancy: `v4` (256-thread blocks, 2×2
+  outputs/thread) is 1.8× faster than `v2` at 1024³ (0.64 vs 1.13ms). We first
+  credited occupancy; ncu shows both at 66.67% theoretical occupancy, while
+  shared-load instructions fall 70% (41,943,040 → 12,582,912) and the FMA pipe
+  goes from 8.65% to 20.92% active. `v3`'s float4 loads never beat `v2` beyond
+  noise (v3 1.31 vs v2 1.13ms at 1024³) — a recorded negative result.
 - Bigger tiles win big problems, starve small ones: `v5` (128-tile, 8×8/thread)
   is 1.5× faster than `v4` at 1024³ (0.425 vs 0.64ms) but loses at 512³ and below
   (0.31× at 256³ — 4 blocks can't fill the GPU).
-- Layout + vectors stack on top: `v6` (float4 fills, transposed A tile) is 1.4×
+- The fill, not the layout: `v6` (float4 fills, transposed A tile) is 1.4×
   faster than `v5` on every shape including 256³ (0.310 vs 0.425ms at 1024³,
-  69% of cuBLAS) —
-  shared-memory layout was second-order, but not zero.
+  69% of cuBLAS). We designed the transposed tile to remove A-fragment bank
+  conflicts; ncu shows v5 and v6 with identical shared-load conflicts
+  (4,194,304 each). The measured change is in the fill: shared-store
+  conflicts 1,588,225 → 278,453 and 8% fewer warp instructions.
 - The vendor baseline earned its place twice: it caught our wrong-math OP_T
   emulation (fixed to OP_N, validated value-by-value), and it leads the best
-  custom kernel 1.5× at 1024³ (10093 vs 6934 GFLOPS).
+  custom kernel 1.5× at 1024³ (10093 vs 6934 GFLOPS). The cuBLAS kernel here
+  is a CUTLASS SIMT FP32 kernel (no tensor cores) doing the same FFMA count as
+  v6; its FMA pipe is 60.42% active vs v6's 33.91%.
 - Protocol before speed: `cudaEvent` kernel-only timing, warmup plus timed iters,
   median/min/p95, identical inputs, JSON evidence with environment metadata,
   repeat runs with a scripted >5% drift check (`scripts/check_repeat.py`).
@@ -190,13 +197,14 @@ any new bench run and commit the figure).
   `kern_correctness` ALL PASS). The earlier Smart App Control block no longer
   stops execution; the prior hang was the v3 divergent-barrier bug (fixed).
   See `docs/ENVIRONMENT.md` and `LOG.md`.
-- WDDM blocks `ncu` counters on this machine (`ERR_NVGPUCTRPERM`; attempt log in
-  `results/ncu/` — enabling counters needs admin action, out of scope), so
-  profiler evidence stays `NOT RUN` and claims rest on timing plus labeled
-  analytical reasoning.
+- Profiler scope: `ncu` counters were blocked (`ERR_NVGPUCTRPERM`) until
+  2026-10-15. The counter profile covers one shape (1024³) and five kernels
+  (v2, v4, v5, v6, cuBLAS), one launch each, with clocks unlocked
+  (`--clock-control none`); v0/v1/v3 and other shapes are NOT RUN under ncu.
+  DRAM byte counts did not reproduce across two runs and are not used.
 - `v2`/`v3` use 32x32 thread blocks (1024 threads, the architectural max):
-  portable but occupancy-limited — which is exactly what `v4` (16x16 threads ×
-  2x2 outputs) tested and confirmed (see `docs/WRITEUP.md`).
+  one block per SM, which ncu shows is still 66.67% theoretical occupancy
+  (same as `v4`); see `docs/WRITEUP.md` §10.
 - Laptop GPU (RTX 5070 Laptop, 75 W power cap, display-attached WDDM): clocks
   swing run to run (observed SM boost 1447–2730 MHz across bench runs); medians
   plus repeats plus drift adjudication carry the load this creates. Numbers

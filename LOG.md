@@ -385,3 +385,30 @@
   Binary SHA-256 `e070d058…d390` in every header. `nvidia-smi` read-only
   query worked (driver 617.14). Docs now name the strict build; stale
   "126 checks / 6 kernels" counts in WRITEUP fixed to 160.
+
+## 2026-10-15 — ncu counters work: ladder profiled at 1024^3, two explanations corrected
+- Bottleneck: every mechanism claim (occupancy for v4, bank conflicts for
+  v6, "tensor cores" for the cuBLAS gap) was inference, because counters
+  were blocked. Today `ncu --query-metrics` and a test collection on
+  `v6_kernel` both worked (no `ERR_NVGPUCTRPERM`); I did not change any
+  permission or clock setting.
+- Change: `scripts/run_ncu_ladder.py` (v2/v4/v5/v6/cuBLAS inside kern_bench,
+  first timed launch, metric names checked against `--query-metrics`,
+  LaunchStats/Occupancy sections checked against `--list-sections`,
+  `--clock-control none`, local paths redacted) + `scripts/ncu_summary.py`
+  (generated table). Ran twice; kept both runs. Claims audit now also
+  traces numbers against the ncu summaries.
+- Metric (summary.md, 1024^3): v2 and v4 both 66.67% theoretical occupancy,
+  so v4's 1.8x is NOT an occupancy win; shared-load instructions fell
+  41,943,040 -> 12,582,912 and FMA pipe went 8.65% -> 20.92% active. v2
+  shared-load bank conflicts = 0 (claim confirmed). v5 and v6 have identical
+  shared-load conflicts (4,194,304), so the transposed-A "broadcast" story
+  is NOT supported; v6's measured change is in the fill (store conflicts
+  1,588,225 -> 278,453) and fewer instructions. cuBLAS picks
+  `cutlass_80_simt_sgemm_128x64_8x5_nn_align1` (SIMT, not tensor cores),
+  same FFMA count as v6, FMA pipe 60.42% vs 33.91%.
+- Repeatability: instruction and shared-memory counts reproduce (exact or
+  ~1%); DRAM bytes do not (v6 9.3 vs 12.9 MB read), so DRAM is unused.
+- Docs corrected (README key lessons + limitations, WRITEUP §5/7/8/9/10/13,
+  NEGATIVE_RESULTS #9/#10, ENVIRONMENT). Not done: a
+  float4-fill untransposed v6 variant to isolate the transpose (NOT RUN).

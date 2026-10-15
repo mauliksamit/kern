@@ -1,0 +1,71 @@
+{
+  "date_utc": "2026-10-15T04:53:50Z",
+  "git_commit": "6eacd9a33526a3ceb58b83e83a7cdbb86fae6136",
+  "tracked_files_dirty": false,
+  "ncu_version": "Version 2025.3.1.0 (build 36398880) (public-release)",
+  "gpu": "NVIDIA GeForce RTX 5070 Laptop GPU, 617.14, 12.0",
+  "shape": {
+    "M": 1024,
+    "N": 1024,
+    "K": 1024
+  },
+  "binary": "build\\kern_bench.exe",
+  "clock_control": "none (clocks never locked; durations not used for claims)",
+  "launch_skip": 11,
+  "metrics": [
+    "gpu__time_duration.sum",
+    "sm__cycles_elapsed.avg",
+    "sm__throughput.avg.pct_of_peak_sustained_elapsed",
+    "dram__throughput.avg.pct_of_peak_sustained_elapsed",
+    "dram__bytes_op_read.sum",
+    "dram__bytes_op_write.sum",
+    "lts__t_bytes.sum",
+    "l1tex__t_bytes_pipe_lsu_mem_global_op_ld.sum",
+    "smsp__sass_inst_executed_op_shared_ld.sum",
+    "smsp__sass_inst_executed_op_shared_st.sum",
+    "l1tex__data_pipe_lsu_wavefronts_mem_shared_op_ld.sum",
+    "l1tex__data_pipe_lsu_wavefronts_mem_shared_op_st.sum",
+    "l1tex__data_bank_conflicts_pipe_lsu_mem_shared_op_ld.sum",
+    "l1tex__data_bank_conflicts_pipe_lsu_mem_shared_op_st.sum",
+    "sm__warps_active.avg.pct_of_peak_sustained_active",
+    "smsp__inst_executed.sum",
+    "smsp__sass_thread_inst_executed_op_ffma_pred_on.sum",
+    "sm__pipe_fma_cycles_active.avg.pct_of_peak_sustained_active"
+  ],
+  "sections": [
+    "LaunchStats",
+    "Occupancy"
+  ],
+  "kernels": {
+    "v2_tiled": {
+      "filter": "regex:v2_kernel",
+      "ok": true,
+      "exit_code": 0,
+      "command": "ncu --clock-control none --csv --page raw -k regex:v2_kernel --launch-skip 11 -c 1 --metrics gpu__time_duration.sum,sm__cycles_elapsed.avg,sm__throughput.avg.pct_of_peak_sustained_elapsed,dram__throughput.avg.pct_of_peak_sustained_elapsed,dram__bytes_op_read.sum,dram__bytes_op_write.sum,lts__t_bytes.sum,l1tex__t_bytes_pipe_lsu_mem_global_op_ld.sum,smsp__sass_inst_executed_op_shared_ld.sum,smsp__sass_inst_executed_op_shared_st.sum,l1tex__data_pipe_lsu_wavefronts_mem_shared_op_ld.sum,l1tex__data_pipe_lsu_wavefronts_mem_shared_op_st.sum,l1tex__data_bank_conflicts_pipe_lsu_mem_shared_op_ld.sum,l1tex__data_bank_conflicts_pipe_lsu_mem_shared_op_st.sum,sm__warps_active.avg.pct_of_peak_sustained_active,smsp__inst_executed.sum,smsp__sass_thread_inst_executed_op_ffma_pred_on.sum,sm__pipe_fma_cycles_active.avg.pct_of_peak_sustained_active --section LaunchStats --section Occupancy build\\kern_bench.exe --M 1024 --N 1024 --K 1024 --seed 0 --out <repo>\\results\\ncu\\ladder_M1024_N1024_K1024\\_bench_under_ncu.json"
+    },
+    "v4_coarsened": {
+      "filter": "regex:v4_kernel",
+      "ok": true,
+      "exit_code": 0,
+      "command": "ncu --clock-control none --csv --page raw -k regex:v4_kernel --launch-skip 11 -c 1 --metrics gpu__time_duration.sum,sm__cycles_elapsed.avg,sm__throughput.avg.pct_of_peak_sustained_elapsed,dram__throughput.avg.pct_of_peak_sustained_elapsed,dram__bytes_op_read.sum,dram__bytes_op_write.sum,lts__t_bytes.sum,l1tex__t_bytes_pipe_lsu_mem_global_op_ld.sum,smsp__sass_inst_executed_op_shared_ld.sum,smsp__sass_inst_executed_op_shared_st.sum,l1tex__data_pipe_lsu_wavefronts_mem_shared_op_ld.sum,l1tex__data_pipe_lsu_wavefronts_mem_shared_op_st.sum,l1tex__data_bank_conflicts_pipe_lsu_mem_shared_op_ld.sum,l1tex__data_bank_conflicts_pipe_lsu_mem_shared_op_st.sum,sm__warps_active.avg.pct_of_peak_sustained_active,smsp__inst_executed.sum,smsp__sass_thread_inst_executed_op_ffma_pred_on.sum,sm__pipe_fma_cycles_active.avg.pct_of_peak_sustained_active --section LaunchStats --section Occupancy build\\kern_bench.exe --M 1024 --N 1024 --K 1024 --seed 0 --out <repo>\\results\\ncu\\ladder_M1024_N1024_K1024\\_bench_under_ncu.json"
+    },
+    "v5_regtile": {
+      "filter": "regex:v5_kernel",
+      "ok": true,
+      "exit_code": 0,
+      "command": "ncu --clock-control none --csv --page raw -k regex:v5_kernel --launch-skip 11 -c 1 --metrics gpu__time_duration.sum,sm__cycles_elapsed.avg,sm__throughput.avg.pct_of_peak_sustained_elapsed,dram__throughput.avg.pct_of_peak_sustained_elapsed,dram__bytes_op_read.sum,dram__bytes_op_write.sum,lts__t_bytes.sum,l1tex__t_bytes_pipe_lsu_mem_global_op_ld.sum,smsp__sass_inst_executed_op_shared_ld.sum,smsp__sass_inst_executed_op_shared_st.sum,l1tex__data_pipe_lsu_wavefronts_mem_shared_op_ld.sum,l1tex__data_pipe_lsu_wavefronts_mem_shared_op_st.sum,l1tex__data_bank_conflicts_pipe_lsu_mem_shared_op_ld.sum,l1tex__data_bank_conflicts_pipe_lsu_mem_shared_op_st.sum,sm__warps_active.avg.pct_of_peak_sustained_active,smsp__inst_executed.sum,smsp__sass_thread_inst_executed_op_ffma_pred_on.sum,sm__pipe_fma_cycles_active.avg.pct_of_peak_sustained_active --section LaunchStats --section Occupancy build\\kern_bench.exe --M 1024 --N 1024 --K 1024 --seed 0 --out <repo>\\results\\ncu\\ladder_M1024_N1024_K1024\\_bench_under_ncu.json"
+    },
+    "v6_vec_transposed": {
+      "filter": "regex:v6_kernel",
+      "ok": true,
+      "exit_code": 0,
+      "command": "ncu --clock-control none --csv --page raw -k regex:v6_kernel --launch-skip 11 -c 1 --metrics gpu__time_duration.sum,sm__cycles_elapsed.avg,sm__throughput.avg.pct_of_peak_sustained_elapsed,dram__throughput.avg.pct_of_peak_sustained_elapsed,dram__bytes_op_read.sum,dram__bytes_op_write.sum,lts__t_bytes.sum,l1tex__t_bytes_pipe_lsu_mem_global_op_ld.sum,smsp__sass_inst_executed_op_shared_ld.sum,smsp__sass_inst_executed_op_shared_st.sum,l1tex__data_pipe_lsu_wavefronts_mem_shared_op_ld.sum,l1tex__data_pipe_lsu_wavefronts_mem_shared_op_st.sum,l1tex__data_bank_conflicts_pipe_lsu_mem_shared_op_ld.sum,l1tex__data_bank_conflicts_pipe_lsu_mem_shared_op_st.sum,sm__warps_active.avg.pct_of_peak_sustained_active,smsp__inst_executed.sum,smsp__sass_thread_inst_executed_op_ffma_pred_on.sum,sm__pipe_fma_cycles_active.avg.pct_of_peak_sustained_active --section LaunchStats --section Occupancy build\\kern_bench.exe --M 1024 --N 1024 --K 1024 --seed 0 --out <repo>\\results\\ncu\\ladder_M1024_N1024_K1024\\_bench_under_ncu.json"
+    },
+    "cublas": {
+      "filter": "regex:Kernel2",
+      "ok": true,
+      "exit_code": 0,
+      "command": "ncu --clock-control none --csv --page raw -k regex:Kernel2 --launch-skip 11 -c 1 --metrics gpu__time_duration.sum,sm__cycles_elapsed.avg,sm__throughput.avg.pct_of_peak_sustained_elapsed,dram__throughput.avg.pct_of_peak_sustained_elapsed,dram__bytes_op_read.sum,dram__bytes_op_write.sum,lts__t_bytes.sum,l1tex__t_bytes_pipe_lsu_mem_global_op_ld.sum,smsp__sass_inst_executed_op_shared_ld.sum,smsp__sass_inst_executed_op_shared_st.sum,l1tex__data_pipe_lsu_wavefronts_mem_shared_op_ld.sum,l1tex__data_pipe_lsu_wavefronts_mem_shared_op_st.sum,l1tex__data_bank_conflicts_pipe_lsu_mem_shared_op_ld.sum,l1tex__data_bank_conflicts_pipe_lsu_mem_shared_op_st.sum,sm__warps_active.avg.pct_of_peak_sustained_active,smsp__inst_executed.sum,smsp__sass_thread_inst_executed_op_ffma_pred_on.sum,sm__pipe_fma_cycles_active.avg.pct_of_peak_sustained_active --section LaunchStats --section Occupancy build\\kern_bench.exe --M 1024 --N 1024 --K 1024 --seed 0 --out <repo>\\results\\ncu\\ladder_M1024_N1024_K1024\\_bench_under_ncu.json"
+    }
+  }
+}

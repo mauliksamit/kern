@@ -41,6 +41,13 @@ the CMake CPU-only build works with either (verified below with the default gene
 
 ## Profiler permission
 
+Update 2026-10-15: counter collection WORKS. `ncu --query-metrics` succeeds
+and `scripts/run_ncu_ladder.py` collected counters for v2/v4/v5/v6/cuBLAS at
+1024³ (`results/ncu/ladder_M1024_N1024_K1024/`), run with
+`--clock-control none` so ncu never locks clocks. No permission change was
+made from this repository; it changed between sessions. Older notes below
+are kept as history.
+
 Update 2026-10-09: toolkit IS installed (`ncu`/`compute-sanitizer` 2025.3.1.0).
 Counter permission was blocked at the 2026-10-09 attempt (`ERR_NVGPUCTRPERM`,
 log in `results/ncu/`); re-tested after counters were enabled and STILL

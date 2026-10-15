@@ -4,9 +4,10 @@ Status 2026-10-09: **measured on RTX 5070 (sm_120, CUDA 13.0, driver 617.14).**
 Correctness ALL PASS (160 checks: 20 shapes × (7 kernels + cuBLAS)) and sanitizer clean (4 tools), both on the
 default strict-IEEE build (re-run 2026-10-15; provenance in each `results/sanitizer/*.log` header). Bench run twice
 (runs D/E) with scripted drift check plus an adjudicating run C for the one
-drifting cell. Profiler counters blocked (`ERR_NVGPUCTRPERM`, attempt log in
-`results/ncu/`) — performance claims rest on `cudaEvent` timing plus labeled
-analytical reasoning. Every measured number below comes from `results/`.
+drifting cell. Profiler counters were blocked until 2026-10-15; since then a
+per-kernel Nsight Compute profile at 1024³ exists (§13, `results/ncu/ladder_M1024_N1024_K1024/summary.md`) and it
+corrected two of our earlier explanations (§7, §9). Every measured number
+below comes from `results/`.
 
 ## 1. Problem definition and row-major representation
 
@@ -86,7 +87,8 @@ private; the win, if any, comes from fully coalesced C stores and friendlier
 compiler vectorization of the A stream. Measured: 2.1× at 256³ (0.0725→0.0344 ms), shrinking to 1.15× at 1024³
 (2.6367→2.2912 ms) — mapping overhead matters most where kernels are short.
 The hypothesis held; magnitude varies by shape (`results/bench_*.json`).
-Profiler evidence for this step: NOT RUN (see §13).
+Profiler evidence for this step: NOT RUN (v0/v1 are not in the 1024³ ncu
+profile, §13).
 
 ## 5. Shared-memory tiling (v2)
 
@@ -96,8 +98,10 @@ Global traffic per output tile drops from `2·32·32·32` reads to
 `2·32·32` per K-tile — a ~32× reduction for large K. `B` is served from shared
 (broadcast/column reads) instead of strided DRAM. Bank conflicts: `As[ty][k]`
 is a same-address broadcast per warp row (no conflict); `Bs[k][tx]` touches 32
-distinct banks (no conflict) — expect ≈ 0; `ncu` bank-conflict counters NOT RUN
-(blocked, §13; re-tested after counters were enabled, still blocked).
+distinct banks (no conflict) — expect ≈ 0. **Confirmed by ncu (2026-10-15,
+1024³, §13):** shared-load bank conflicts = 0 on 41,943,040 shared-load
+instructions. The fill *stores* do conflict (642,576 conflicts on 2,097,152
+store instructions), a minor cost next to the loads. Source: `results/ncu/ladder_M1024_N1024_K1024/summary.md`.
 Two `__syncthreads()` per K-tile (after fill, after compute) are required and
 uniform. Non-multiples handled by predicated zero-fill loads + guarded store.
 
@@ -122,7 +126,7 @@ Reference: CUDA Programming Guide barrier-uniformity rule
 (`docs/REFERENCES.md` #7). Edge/misaligned shapes take the scalar fallback and
 are covered by the awkward-shape gate.
 
-## 7. Thread coarsening and occupancy (v4 — MEASURED, hypothesis confirmed)
+## 7. Thread coarsening (v4 — MEASURED; speedup confirmed, occupancy explanation refuted by ncu)
 
 `v4` (`kernels/v4_coarsened.cu`) keeps v2's 32×32 output tile and shared-memory
 algorithm but launches 16×16 = 256 threads, each accumulating a 2×2 micro-tile
@@ -130,12 +134,20 @@ in registers (4× the work per thread; A-row/B-column elements reused across the
 micro-tile; 4× more blocks eligible for concurrent residency). Tile fill is
 cooperative (256 threads × 4 elements). Result at 1024³ (reported run V): **0.64ms vs v2's
 1.13ms — 1.8× faster** (3357 vs 1901 GFLOPS); 512³: 2.2× (0.0817 vs 0.1813ms);
-rect shapes ≈ 2.2× (2.18× / 2.24×). The occupancy/work-per-thread hypothesis is confirmed by
-measurement: the 1024-thread blocks were the binding constraint, not load width
-(§6). v4 reaches 33% of cuBLAS; cuBLAS still leads
-3.0× (10093 GFLOPS) — the remaining gap is the vendor library's territory
-(tensor cores, swizzling, per-shape tuning), stated as future work, not failure.
-Profiler evidence for this step: NOT RUN (see §13).
+rect shapes ≈ 2.2× (2.18× / 2.24×). **The speedup is real; the original
+explanation (occupancy) was wrong.** The pre-counter write-up credited
+"occupancy + work per thread"; ncu at 1024³ (§13, `results/ncu/ladder_M1024_N1024_K1024/summary.md`) shows
+theoretical occupancy is identical — 66.67% for both (v2: 1 block × 32 warps;
+v4: 4 blocks × 8 warps, register-limited) — and achieved occupancy is
+66.32% vs 63.61%. What changed is work per instruction: shared-load
+instructions fell from 41,943,040 to 12,582,912 (70% fewer), total warp
+instructions from 99,942,400 to 74,686,464, and the FMA pipe went from
+8.65% to 20.92% active, for the same 1,073,741,824 thread FFMAs. So the 2×2
+register micro-tile wins by reusing each shared-memory value twice, not by
+fitting more warps. v4 reaches 33% of cuBLAS; cuBLAS still leads
+3.0× (10093 GFLOPS); see §9 for what ncu shows about that gap.
+Cost side, also from ncu: v4's cooperative fill has 6,522,829 shared-store
+bank conflicts (v2: 642,576), a remaining inefficiency.
 
 ## 8. Register blocking (v5 — MEASURED, confirmed at large shapes)
 
@@ -148,20 +160,24 @@ loads, no swizzle: any bank-conflict cost stays in this measurement so v6
 Result (reported run V) at 1024^3: 0.4248ms vs v4 0.6397 (1.5x; 5055 vs 3357
 GFLOPS); K512: 1.28x (0.2109 vs 0.2708); rect: 1.49x (0.1885 vs 0.2804). v5
 reaches 50% of cuBLAS; cuBLAS leads 2.0x (10093 GFLOPS).
+ncu at 1024³ (§13): 168 registers/thread limit v5 to 1 block (8 warps) per
+SM, theoretical occupancy 16.67% (achieved 16.55%), and the 64-block grid is
+1.78 waves on 36 SMs. In exchange, shared-load instructions drop to
+2,097,152 (from v4's 12,582,912) and the FMA pipe rises to 28.62% active.
 
 Crossover, stated plainly: v5 LOSES on small problems — 512^3: 0.0946 vs
 0.0817 (0.86x); 256^3: 0.0573 vs 0.0176 (0.31x). A 128-wide tile on a
 256-wide problem launches 4 blocks (1024 threads): the big tile starves
 parallelism where v4's 32-wide tiles fill the machine. Tile size is a bet on
 problem size; the ladder now shows both sides of it.
-Profiler evidence for this step: NOT RUN (see §13).
 
-What surprised us: the As column pattern aliases rows 8 apart onto identical
-bank sets (8 floats/row = one 32-bank period divisor), yet the 1.5x win came
-anyway — layout is second-order at this intensity. v6 tests whether fixing
-the layout still pays on top.
+Pre-counter analysis (kept for the record, partly refuted in §9): we predicted
+the As column pattern aliases rows 8 apart onto identical bank sets and costs
+a 2-way conflict on A-fragment loads. ncu does show 4,194,304 shared-load bank
+conflicts in v5 — but v6, which was designed to remove them, shows exactly
+the same count (§9).
 
-## 9. Vectorized fill + transposed A tile (v6 — MEASURED, confirmed everywhere)
+## 9. Vectorized fill + transposed A tile (v6 — MEASURED speedup; bank-conflict explanation refuted by ncu)
 
 `v6` (`kernels/v6_vec_transposed.cu`): same BM/BN/BK/TM/TN/grid as v5, two
 layout changes: (a) one float4 per thread in the cooperative fill (256
@@ -177,25 +193,45 @@ GFLOPS); K512: 1.25x (0.1685 vs 0.2109); rect: 1.27x (0.1487 vs 0.1885);
 512^3: 1.19x (0.0793 vs 0.0946); even 256^3: 1.21x (0.0472 vs 0.0573). v6
 reaches 69% of cuBLAS; cuBLAS leads 1.5x (10093 GFLOPS).
 
-What this decides: layout was NOT zero — the transposed A tile plus vector
-fill is worth a consistent ~1.1-1.4x across all nine shapes, including the
-4-block 256^3 launch where v5 starved (v6's cheaper fill helps exactly
-where parallelism is scarcest). v3's failure was being vector-only without
-register intensity; v6 has both. Remaining gap to cuBLAS (1.4x) is now in
-vendor territory: tensor cores, swizzling, async copies, per-shape tuning.
-Profiler evidence for this step: NOT RUN (see §13).
+What the timing decides: v6 is a consistent ~1.1-1.4x faster than v5 on
+all nine shapes, including the 4-block 256^3 launch where v5 starved.
 
-## 10. Register usage and occupancy (analysis; timing evidence measured, counters NOT RUN)
+What ncu changes (1024³, §13, `results/ncu/ladder_M1024_N1024_K1024/summary.md`): the predicted mechanism — the
+transposed A tile turning 2-way-conflicted fragment loads into broadcasts —
+is **not supported**. v5 and v6 have identical shared-load counts:
+2,097,152 instructions, 10,485,760 wavefronts, 4,194,304 bank conflicts,
+reproduced exactly in two profiling runs (`..._run1/`). The measured
+differences are all on the fill side and in instruction count: shared-store
+instructions 524,288 → 327,680, store wavefronts 2,112,513 → 802,741, store
+bank conflicts 1,588,225 → 278,453, total warp instructions 42,288,640 →
+38,950,912, registers 168 → 138, FMA pipe 28.62% → 33.91% active. So the
+measured gain comes from the cheaper vectorized fill; whether the transpose
+itself contributes anything is not isolated (that needs a float4-fill,
+untransposed variant: NOT RUN). Recorded in `docs/NEGATIVE_RESULTS.md`.
 
-`v2`/`v3` run 1024 threads/block with 8 KB shared per block. Most SMs cannot
-co-reside two such blocks (thread-count and shared-memory limits), so occupancy
-is structurally capped — one resident block per SM means latency hiding rests
-entirely on the 1024 threads' own parallelism, and register pressure per thread
-directly trades against nothing (no second block to make room for). v4 tested
-exactly this (§7) and the 1.5–2.2× win confirms it. `ncu` occupancy +
-register-per-thread metrics NOT RUN (counters blocked, §13) — the mechanism is
-inferred from the controlled experiment (only mapping/coarsening changed), not
-assumed.
+The cuBLAS gap (1.4x) is also not what we guessed. The kernel cuBLAS picks
+here is `cutlass_80_simt_sgemm_128x64_8x5_nn_align1`, a SIMT (CUDA-core)
+kernel, not tensor cores, and it executes the same work: 1,075,838,976
+thread FFMAs vs v6's 1,073,741,824 and a similar warp-instruction count
+(42,681,600 vs 38,950,912). The difference is how busy the FMA pipe is:
+60.42% active vs 33.91%. Measured contributors: 25% vs 16.67% theoretical
+occupancy (128 vs 138 registers, 128-thread blocks), 384 blocks = 3.56 waves
+vs 64 blocks = 1.78 waves (less tail imbalance), and 4,320,812 shared-load
+wavefronts vs 10,485,760. The grid's z-dimension of 3 suggests split-K and
+"8x5" in the CUTLASS name suggests a 5-stage pipeline; both are read from the
+name and launch shape, not measured.
+
+## 10. Register usage and occupancy (MEASURED with ncu, 1024³)
+
+Pre-counter claim: v2's 1024-thread blocks cap residency at one block per SM,
+so occupancy limits v2 and v4 wins by fixing it. ncu (§13): the first half is
+true (v2's register, shared-memory and warp limits are each 1 block/SM), but
+one 32-warp block already gives 66.67% theoretical occupancy (sm_120 allows
+48 warps/SM), the same as v4's 4 × 8 warps. Occupancy did not change between
+v2 and v4; instruction count did (§7). Occupancy only drops at v5/v6
+(16.67%, register-limited at 168/138 registers) and that is the price of the
+register tile. The cuBLAS kernel sits between (25%). Registers per thread:
+v2 38, v4 56, v5 168, v6 138, cuBLAS 128.
 
 ## 11. Benchmark methodology and its limitations
 
@@ -257,7 +293,24 @@ Repeatability: runs F/G/H/I/J/K/L/M/N/U/V adjudicated per cell (see §13); prior
 values retained in LOG.md. v3 beats v2 at 512³ (2%), K512 (1%) and rect (2%) —
 within noise in every session.
 
-## 13. Profiler evidence (NOT RUN — blocked, with evidence)
+## 13. Profiler evidence (MEASURED 2026-10-15 at 1024³; earlier attempts blocked)
+
+**2026-10-15: counter collection works.** `ncu --query-metrics` succeeds and
+a test collection on `v6_kernel` returned values (no `ERR_NVGPUCTRPERM`).
+`scripts/run_ncu_ladder.py` profiled v2, v4, v5, v6 and cuBLAS inside
+`kern_bench` at 1024³ (first timed launch of each, after warmup),
+using only metric names present in `ncu --query-metrics` plus the
+`LaunchStats`/`Occupancy` sections from `ncu --list-sections`, with
+`--clock-control none` (the repo never locks clocks). `scripts/ncu_summary.py`
+generates `results/ncu/ladder_M1024_N1024_K1024/summary.md` from the CSVs. The run was repeated
+(`results/ncu/ladder_M1024_N1024_K1024_run1/`): instruction counts and
+shared-load wavefronts/conflicts match exactly or within about 1%; DRAM byte
+counts do **not** reproduce (v6 read 9,293,312 vs 12,862,720 bytes across
+the two runs), so no claim in this write-up uses DRAM bytes. Durations under
+ncu are not speed claims (clocks unlocked, one launch); speed comes from the
+cudaEvent JSONs. Findings are in §5, §7, §8, §9, §10. The historical record
+of the blocked attempts follows.
+
 
 `ncu --section SpeedOfLight` attempted 2026-10-09 (2025.3.1.0, single 256³
 shape): `ERR_NVGPUCTRPERM` — no permission to access GPU performance counters

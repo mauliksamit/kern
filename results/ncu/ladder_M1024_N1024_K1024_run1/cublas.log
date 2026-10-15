@@ -1,0 +1,14 @@
+# command: ncu --clock-control none --csv --page raw -k regex:Kernel2 --launch-skip 11 -c 1 --metrics gpu__time_duration.sum,sm__cycles_elapsed.avg,sm__throughput.avg.pct_of_peak_sustained_elapsed,dram__throughput.avg.pct_of_peak_sustained_elapsed,dram__bytes_op_read.sum,dram__bytes_op_write.sum,lts__t_bytes.sum,l1tex__t_bytes_pipe_lsu_mem_global_op_ld.sum,smsp__sass_inst_executed_op_shared_ld.sum,smsp__sass_inst_executed_op_shared_st.sum,l1tex__data_pipe_lsu_wavefronts_mem_shared_op_ld.sum,l1tex__data_pipe_lsu_wavefronts_mem_shared_op_st.sum,l1tex__data_bank_conflicts_pipe_lsu_mem_shared_op_ld.sum,l1tex__data_bank_conflicts_pipe_lsu_mem_shared_op_st.sum,sm__warps_active.avg.pct_of_peak_sustained_active,smsp__inst_executed.sum,smsp__sass_thread_inst_executed_op_ffma_pred_on.sum,sm__pipe_fma_cycles_active.avg.pct_of_peak_sustained_active --section LaunchStats --section Occupancy build\kern_bench.exe --M 1024 --N 1024 --K 1024 --seed 0 --out <repo>\results\ncu\ladder_M1024_N1024_K1024\_bench_under_ncu.json
+==WARNING== Note: Running with unmodified GPU clocks. If not controlled otherwise, profiling results may be inconsistent.
+==PROF== Connected to process 33860 (<repo>\build\kern_bench.exe)
+==PROF== Disconnected from process 33860
+[bench] M=1024 N=1024 K=1024 seed=0
+  v0_naive           median=   2.5334 ms  min=   2.4772  p95=   2.6449  GFLOPS=    847.7  GB/s=     5.0
+  v1_coalesced       median=   2.3836 ms  min=   2.3087  p95=   2.4804  GFLOPS=    901.0  GB/s=     5.3
+  v2_tiled           median=   1.1773 ms  min=   1.1105  p95=   1.3296  GFLOPS=   1824.1  GB/s=    10.7
+  v3_tiled_vectorized median=   1.2286 ms  min=   1.1801  p95=   1.3884  GFLOPS=   1747.9  GB/s=    10.2
+  v4_coarsened       median=   0.6916 ms  min=   0.5922  p95=   0.7432  GFLOPS=   3105.3  GB/s=    18.2
+  v5_regtile         median=   0.4463 ms  min=   0.4277  p95=   0.4975  GFLOPS=   4811.7  GB/s=    28.2
+  v6_vec_transposed  median=   0.3490 ms  min=   0.3360  p95=   0.3878  GFLOPS=   6153.4  GB/s=    36.1
+  cublas             median=   0.2156 ms  min=   0.2067  p95=   0.4151  GFLOPS=   9959.8  GB/s=    58.4
+[bench] wrote <repo>\results\ncu\ladder_M1024_N1024_K1024\_bench_under_ncu.json (re-run at least twice; flag >5% median drift)

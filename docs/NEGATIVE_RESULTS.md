@@ -31,10 +31,12 @@ measured misses here with the reason.
    0.0283 vs 0.0275; 512^3: 0.1760 vs 0.1838 (only win, 4%, within noise);
    1024^3: 1.2700 vs 1.1263; K512: 0.5938 vs 0.5923; rect: 0.6098 vs 0.6039.
    Same verdict across sessions D/E/F/G/H/I/J/K/L/M/N: no genuine gain — cooperative
-   float4 fill + fast-path branch overhead at the 1024-thread occupancy wall.
-   v4 (same tile, coarsened threads) gained 1.5-2.2x, confirming the wall,
-   not load width, was binding. `ncu` transaction counters NOT RUN (blocked,
-   see `results/ncu/`). v3 file retained; do not build on it without evidence.
+   float4 fill + fast-path branch overhead.
+   v4 (same tile, coarsened threads) gained 1.5-2.2x. CORRECTION 2026-10-15:
+   this entry used to say v4 confirmed an "occupancy wall"; ncu shows v2 and
+   v4 at the same 66.67% theoretical occupancy, so the binding constraint was
+   shared-load instruction count, not occupancy (entry 9). v3 itself is not
+   in the ncu profile (NOT RUN). v3 file retained; do not build on it without evidence.
    Re-verified on runs J/K/L/M (reported run M): v3 vs v2 medians 256^3:
    0.0287 vs 0.0277; 512^3: 0.1776 vs 0.1852; 1024^3: 1.2580 vs 1.1277;
    K512: 0.5909 vs 0.5931; rect: 0.6142 vs 0.6090. Same verdict, sixth time.
@@ -46,10 +48,10 @@ measured misses here with the reason.
 6. **v7 warp-level tiling — SKIPPED with reason (not a failure).** v6 gained a
    consistent 1.2–1.4x and sits at 73% of cuBLAS (run M era; 69% on reported
    run V) — the remaining gap is vendor
-   territory (tensor cores, swizzling, async copies) that warp tiling alone
-   cannot take — and without `ncu` counters the warp-level effects would be
-   unverifiable tuning in the dark. Parked until profiler access or a new
-   bottleneck appears. See LOG.md.
+   territory that warp tiling alone cannot take — and without `ncu` counters
+   the warp-level effects would be unverifiable tuning in the dark. Parked.
+   UPDATE 2026-10-15: counters now work; "tensor cores" was wrong (cuBLAS's
+   1024³ kernel is CUTLASS SIMT FP32), see entry 10. See LOG.md.
 
 7. **TDR skip machinery dormant (not a miss).** `kern_bench --all` carries a
    per-shape v0/v1 skip with SKIPPED rendering (tested with a synthetic JSON).
@@ -64,3 +66,21 @@ measured misses here with the reason.
    build; per protocol no WSL, no workarounds attempted. Eager FP32 measured
    instead (9.3–10.4 TFLOPS, within 7% of the cuBLAS harness). See
    `results/ml_transformer.json` and LOG.md.
+
+9. **v4 "occupancy" explanation — REFUTED by ncu (2026-10-15).** The speedup
+   (1.8x at 1024³) stands; the mechanism we wrote down did not. Theoretical
+   occupancy v2 = v4 = 66.67% (achieved 66.32% vs 63.61%). Measured cause:
+   shared-load instructions 41,943,040 → 12,582,912, FMA pipe 8.65% → 20.92%
+   active. Source: `results/ncu/ladder_M1024_N1024_K1024/summary.md`. Docs corrected in README, WRITEUP §7/§10.
+
+10. **v6 transposed A tile as a bank-conflict fix — NOT SUPPORTED by ncu
+    (2026-10-15).** Hypothesis: v5's A-fragment loads are 2-way conflicted and
+    storing A transposed makes them broadcasts. Measured: v5 and v6 have
+    identical shared-load counts (2,097,152 instructions, 10,485,760
+    wavefronts, 4,194,304 conflicts) in two profiling runs. v6's speedup is
+    real but the measured differences are in the fill (store conflicts
+    1,588,225 → 278,453) and instruction count (42,288,640 → 38,950,912).
+    Whether the transpose contributes anything is not isolated: a float4-fill,
+    untransposed variant would answer it (NOT RUN). Also corrected: the
+    cuBLAS gap is not tensor cores (CUTLASS SIMT FP32 kernel, same FFMA count,
+    FMA pipe 60.42% vs 33.91%).
