@@ -368,3 +368,20 @@
   When unblocked: `build/kern_correctness --seed 1234` + sanitizer script,
   then amend this entry.
 - Next: commit (evidence + prose), push, final report.
+
+## 2026-10-15 — Correctness + sanitizer on the strict-IEEE build
+- Bottleneck: the correctness and sanitizer logs came from the fast-math
+  binary, so "clean" was unproven for the default strict-IEEE build that
+  produced every committed bench number.
+- Change: `run_sanitizer.sh` now writes a provenance header into each log
+  (commit `13f4a39`, flag-extraction fix `c2d0a13`). Clean rebuild
+  (`--clean-first`, NMake, Release, `KERN_FAST_MATH=OFF`; nvcc command line
+  has `-O3 -lineinfo -Xcompiler=/O2`, sm_120, no `--use_fast_math`). Kernel,
+  test, and CMake sources are unchanged since `4fffa19`; only the script
+  changed between the build commit and the logged commit.
+- Metric: `kern_correctness --seed 1234` ALL PASS (bad=0, 160 checks);
+  memcheck 0 errors, racecheck 0 hazards, synccheck 0 errors, initcheck 0
+  errors, 160 PASS lines in every log; total sanitizer wall time 3m33s.
+  Binary SHA-256 `e070d058…d390` in every header. `nvidia-smi` read-only
+  query worked (driver 617.14). Docs now name the strict build; stale
+  "126 checks / 6 kernels" counts in WRITEUP fixed to 160.

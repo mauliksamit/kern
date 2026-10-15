@@ -1,7 +1,8 @@
 # Writeup — SGEMM optimization ladder
 
 Status 2026-10-09: **measured on RTX 5070 (sm_120, CUDA 13.0, driver 617.14).**
-Correctness ALL PASS (126 checks: 18 shapes × (6 kernels + cuBLAS)), sanitizer clean (4 tools), bench run twice
+Correctness ALL PASS (160 checks: 20 shapes × (7 kernels + cuBLAS)) and sanitizer clean (4 tools), both on the
+default strict-IEEE build (re-run 2026-10-15; provenance in each `results/sanitizer/*.log` header). Bench run twice
 (runs D/E) with scripted drift check plus an adjudicating run C for the one
 drifting cell. Profiler counters blocked (`ERR_NVGPUCTRPERM`, attempt log in
 `results/ncu/`) — performance claims rest on `cudaEvent` timing plus labeled
@@ -52,8 +53,9 @@ beyond float rounding. cuBLAS-vs-reference passes on all 12 shapes with
 *smaller* worst errors than the custom kernels (e.g. 1.14e-05 vs 3.24e-05 at
 512³) — the vendor kernel's blocking/accumulation order rounds better, an
 independent confirmation the baseline computes the same math. Sanitizer:
-memcheck/racecheck/synccheck/initcheck all clean on final binaries
-(`results/sanitizer/*.log`: 0 errors, racecheck 0 hazards).
+memcheck/racecheck/synccheck/initcheck all clean on the final strict-IEEE
+binary (`KERN_FAST_MATH=OFF`; `results/sanitizer/*.log`: 0 errors, racecheck
+0 hazards, 160 PASS lines each; header records commit, flags, binary SHA-256).
 
 ## 3. Kernel execution model
 
@@ -326,12 +328,11 @@ v0/v1 at drift 22.2%/30.4%, are the N-side burst modes above); v4/v5/v6
 move within noise on all 9 shapes. Verdict: the flag's effect is
 indistinguishable from WDDM session noise on this workload — strict IEEE
 stays the default and every committed number is now a strict-math
-measurement (`compile_flags` in each JSON). Residual gap, stated plainly:
-the full correctness + sanitizer gates were last run on the fast-math
-binary; a strict-binary re-run is NOT RUN (GPU execution stopped by policy
-(no admin or device changes) after the `nvidia-smi` permission failure) — when
-unblocked: `build/kern_correctness --seed 1234` plus
-`scripts/run_sanitizer.sh`.
+measurement (`compile_flags` in each JSON). Correctness and sanitizer
+gates on the strict build: on 2026-10-15 a clean strict rebuild passed `kern_correctness --seed 1234`
+(160/160) and all four sanitizer tools (0 errors, 0 hazards); each log
+header names the commit, `KERN_FAST_MATH=OFF`, the nvcc flags and the
+binary SHA-256.
 
 ## 14. Failed experiments and negative results
 

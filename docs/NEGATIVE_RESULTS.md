@@ -2,7 +2,7 @@
 
 Status 2026-10-09: GPU experiments HAVE been run on this machine (RTX 5070,
 sm_120; correctness 160/160, bench runs with drift adjudication, sanitizer
-4/4 clean - see `LOG.md`, `results/`). Entries 1–3 below were **design-stage rejections**
+4/4 clean on the strict-IEEE build - see `LOG.md`, `results/`). Entries 1–3 below were **design-stage rejections**
 (never run, kept as decisions); entry 5 is a **measured** miss. Append new
 measured misses here with the reason.
 

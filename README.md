@@ -8,8 +8,10 @@ Why: a small, reproducible study of GPU performance work where every
 claim traces to a committed log file.
 
 Status: **measured on RTX 5070 (sm_120), 2026-10-09.** Correctness gate ALL PASS
-(160 checks: 20 shapes × (7 kernels + cuBLAS)), Compute Sanitizer
-clean (memcheck/racecheck/synccheck/initcheck), bench run twice
+(160 checks: 20 shapes × (7 kernels + cuBLAS)) and Compute Sanitizer
+clean (memcheck/racecheck/synccheck/initcheck), both re-run 2026-10-15 on the
+default strict-IEEE build (`KERN_FAST_MATH=OFF`, no `--use_fast_math`; commit,
+flags and binary SHA-256 in each `results/sanitizer/*.log` header), bench run twice
 with drift check + adjudicating runs. Profiler counters are blocked on this
 WDDM machine (`ERR_NVGPUCTRPERM`, evidence in `results/ncu/`), so performance
 claims rest on `cudaEvent` timing plus labeled analytical reasoning.

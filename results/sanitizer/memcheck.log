@@ -1,3 +1,11 @@
+# kern sanitizer log (header written by scripts/run_sanitizer.sh)
+# date_utc: 2026-10-15T04:41:41Z
+# git_commit: c2d0a133ce7e59517b1759726578cff07a0fb166 (tracked-files dirty: no)
+# build: CMAKE_BUILD_TYPE=Release KERN_FAST_MATH=OFF KERN_CUDA_ARCH=sm_120
+# kernel compile flags (from compile_commands.json): -O3 -lineinfo -Xcompiler=/O2 --generate-code=arch=compute_120,code=[compute_120,sm_120] 
+# binary: build/kern_correctness.exe sha256=e070d058d7e10c66be5c8de8321e2589e32a13939d62cac35b872cacddd1d390
+# sanitizer: Version 2025.3.1.0 (build 36400806) (public-release)
+# command: compute-sanitizer --tool memcheck build/kern_correctness.exe --seed 1234
 ========= COMPUTE-SANITIZER
 [kern_correctness] seed=1234
 shape M=1 N=1 K=1 (size-1):
