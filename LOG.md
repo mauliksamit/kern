@@ -424,3 +424,10 @@
 - `scripts/facts.py` writes `results/facts.json` and `docs/FACTS.md`
   (headline medians, v6 vs cuBLAS on every shape, correctness, sanitizer
   summaries, ncu figures), each with its source file.
+
+## 2026-10-15 — Cold-clone check and CI
+- Fresh `git clone` from GitHub of `a646925` into an empty folder; README
+  NMake + VsDevCmd configure and full CUDA build: OK; `ctest` 3/3 passed
+  (CPU reference, GPU correctness gate, claims audit).
+- CI on `a646925`: completed, success (read from the GitHub API, run
+  38700694127).
