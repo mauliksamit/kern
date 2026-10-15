@@ -412,3 +412,15 @@
 - Docs corrected (README key lessons + limitations, WRITEUP §5/7/8/9/10/13,
   NEGATIVE_RESULTS #9/#10, ENVIRONMENT). Not done: a
   float4-fill untransposed v6 variant to isolate the transpose (NOT RUN).
+
+## 2026-10-15 — Claims audit tightened; generated facts
+- The audit now checks speedups too, derives percentages/speedups only from
+  comparable pairs (same metric and shape, same kernel across shapes, or one
+  ncu counter across kernels) instead of any two stored values, matches at
+  printed precision, and reads the docs as UTF-8 (on Windows "×" was being
+  mis-decoded, so speedups were silently unchecked locally). 122 claims
+  checked, all pass. Known limit, documented in the script: a one-decimal
+  percentage can still coincide with some comparable pair.
+- `scripts/facts.py` writes `results/facts.json` and `docs/FACTS.md`
+  (headline medians, v6 vs cuBLAS on every shape, correctness, sanitizer
+  summaries, ncu figures), each with its source file.

@@ -1,0 +1,138 @@
+{
+  "generated_by": "scripts/facts.py",
+  "device": "NVIDIA GeForce RTX 5070 Laptop GPU",
+  "driver": "617.14",
+  "compile_flags": "-O3 -lineinfo -Xcompiler=/O2 -arch=sm_120",
+  "bench_1024": {
+    "v0_median_ms": 2.636736,
+    "v6_median_ms": 0.309696,
+    "cublas_median_ms": 0.212768,
+    "v6_gflops": 6934.167,
+    "cublas_gflops": 10093.076,
+    "v6_speedup_over_v0": 8.513949163050215,
+    "v6_pct_of_cublas": 68.70221724279101,
+    "bench_git_commit": "6d9dbb0",
+    "source": "results/bench_M1024_N1024_K1024.json"
+  },
+  "v6_vs_cublas_all_shapes": [
+    {
+      "shape": "1024x1024x1024",
+      "v6_gflops": 6934.167,
+      "cublas_gflops": 10093.076,
+      "v6_pct_of_cublas": 68.70221724279101,
+      "source": "results/bench_M1024_N1024_K1024.json"
+    },
+    {
+      "shape": "1024x1024x512",
+      "v6_gflops": 6370.692,
+      "cublas_gflops": 9655.952,
+      "v6_pct_of_cublas": 65.97683998429156,
+      "source": "results/bench_M1024_N1024_K512.json"
+    },
+    {
+      "shape": "2048x2048x2048",
+      "v6_gflops": 7597.302,
+      "cublas_gflops": 10868.052,
+      "v6_pct_of_cublas": 69.90491028198981,
+      "source": "results/bench_M2048_N2048_K2048.json"
+    },
+    {
+      "shape": "256x256x256",
+      "v6_gflops": 710.417,
+      "cublas_gflops": 1783.293,
+      "v6_pct_of_cublas": 39.83736828440419,
+      "source": "results/bench_M256_N256_K256.json"
+    },
+    {
+      "shape": "4096x4096x4096",
+      "v6_gflops": 6060.885,
+      "cublas_gflops": 10117.518,
+      "v6_pct_of_cublas": 59.90486006548246,
+      "source": "results/bench_M4096_N4096_K4096.json"
+    },
+    {
+      "shape": "4096x512x1024",
+      "v6_gflops": 7342.728,
+      "cublas_gflops": 10438.461,
+      "v6_pct_of_cublas": 70.34301320855633,
+      "source": "results/bench_M4096_N512_K1024.json"
+    },
+    {
+      "shape": "512x1024x1024",
+      "v6_gflops": 7219.112,
+      "cublas_gflops": 9543.354,
+      "v6_pct_of_cublas": 75.6454387000629,
+      "source": "results/bench_M512_N1024_K1024.json"
+    },
+    {
+      "shape": "512x4096x1024",
+      "v6_gflops": 7212.129,
+      "cublas_gflops": 9285.211,
+      "v6_pct_of_cublas": 77.6732914308571,
+      "source": "results/bench_M512_N4096_K1024.json"
+    },
+    {
+      "shape": "512x512x512",
+      "v6_gflops": 3386.6,
+      "cublas_gflops": 6792.395,
+      "v6_pct_of_cublas": 49.85870226922904,
+      "source": "results/bench_M512_N512_K512.json"
+    }
+  ],
+  "correctness": {
+    "seed": 1234,
+    "bad": 0,
+    "result": "pass",
+    "pass_lines_per_sanitizer_log": 160,
+    "source": "results/correctness_seed1234.json + results/sanitizer/*.log"
+  },
+  "sanitizer": {
+    "memcheck": {
+      "summary": "ERROR SUMMARY: 0 errors",
+      "pass_lines": 160,
+      "git_commit": "c2d0a133ce7e59517b1759726578cff07a0fb166 (tracked-files dirty: no)",
+      "build": "CMAKE_BUILD_TYPE=Release KERN_FAST_MATH=OFF KERN_CUDA_ARCH=sm_120"
+    },
+    "racecheck": {
+      "summary": "RACECHECK SUMMARY: 0 hazards displayed (0 errors, 0 warnings)",
+      "pass_lines": 160,
+      "git_commit": "c2d0a133ce7e59517b1759726578cff07a0fb166 (tracked-files dirty: no)",
+      "build": "CMAKE_BUILD_TYPE=Release KERN_FAST_MATH=OFF KERN_CUDA_ARCH=sm_120"
+    },
+    "synccheck": {
+      "summary": "ERROR SUMMARY: 0 errors",
+      "pass_lines": 160,
+      "git_commit": "c2d0a133ce7e59517b1759726578cff07a0fb166 (tracked-files dirty: no)",
+      "build": "CMAKE_BUILD_TYPE=Release KERN_FAST_MATH=OFF KERN_CUDA_ARCH=sm_120"
+    },
+    "initcheck": {
+      "summary": "ERROR SUMMARY: 0 errors",
+      "pass_lines": 160,
+      "git_commit": "c2d0a133ce7e59517b1759726578cff07a0fb166 (tracked-files dirty: no)",
+      "build": "CMAKE_BUILD_TYPE=Release KERN_FAST_MATH=OFF KERN_CUDA_ARCH=sm_120"
+    }
+  },
+  "ncu_1024": {
+    "occupancy_theoretical_pct": {
+      "v2_tiled": 66.67,
+      "v4_coarsened": 66.67,
+      "v5_regtile": 16.67,
+      "v6_vec_transposed": 16.67,
+      "cublas": 25.0
+    },
+    "shared_ld_inst_v2_to_v4": [
+      41943040.0,
+      12582912.0
+    ],
+    "shared_ld_bank_conflicts_v5_v6": [
+      4194304.0,
+      4194304.0
+    ],
+    "fma_pipe_active_pct_v6_cublas": [
+      33.91,
+      60.42
+    ],
+    "cublas_kernel": "void Kernel2<cutlass_80_simt_sgemm_128x64_8x5_nn_align1>(Params)",
+    "source": "results/ncu/ladder_M1024_N1024_K1024/summary.json"
+  }
+}
