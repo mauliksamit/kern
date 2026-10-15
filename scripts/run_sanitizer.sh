@@ -33,8 +33,12 @@ BUILD_TYPE="$(cache_val CMAKE_BUILD_TYPE)"
 ARCH="$(cache_val KERN_CUDA_ARCH)"
 # The effective release flags are set inside CMakeLists.txt (not the cache);
 # recover them from the generated compile_commands.json for the kernels.
-FLAGS="$(grep -o '"command": "[^"]*v6_vec_transposed.cu[^"]*"' "$BUILD_DIR/compile_commands.json" 2>/dev/null \
-  | head -1 | grep -oE -- '(-O3|-lineinfo|--use_fast_math|-Xcompiler=/O2|--generate-code=[^ ]+|-arch=[^ ]+)' | tr '\n' ' ')"
+# The command line contains escaped quotes, so match the whole line and drop
+# the -DKERN_COMPILE_FLAGS=... define (it repeats the flags as a string).
+FLAGS="$(grep '"command".*v6_vec_transposed\.cu' "$BUILD_DIR/compile_commands.json" 2>/dev/null | head -1 \
+  | sed 's/-DKERN_COMPILE_FLAGS=\\"[^\\]*\\"//' \
+  | grep -oE -- '(-O3|-lineinfo|--use_fast_math|-Xcompiler=/O2|--generate-code=[^ \]+|-arch=[^ \]+)' | tr '\n' ' ')"
+[ -n "$FLAGS" ] || FLAGS="UNKNOWN (compile_commands.json not found or unparsed)"
 SHA="$(sha256sum "$BIN" | cut -d' ' -f1)"
 SANVER="$("$SAN" --version 2>&1 | grep -i version | head -1)"
 
